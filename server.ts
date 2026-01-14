@@ -27,14 +27,23 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.get('/health', async (req, res) => {
   try {
     await verifyConnection();
-    res.json({ db: 'ok' });
+    res.json({ status: 'ok', database: 'connected' });
   } catch (err) {
-    console.error('DB health check failed', err);
-    res.status(500).json({ db: 'error', message: (err as Error).message });
+    console.error('Health check failed:', (err as Error).message);
+    res.status(500).json({ status: 'error', database: 'disconnected', message: (err as Error).message });
   }
 });
 
 const port = process.env.PORT ?? 3000;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+
+app.listen(port, async () => {
+  console.log(`Server running on port ${port}`);
+  try {
+    await verifyConnection();
+  } catch (err) {
+    console.error('⚠ Database connection failed on startup:', (err as Error).message);
+    console.error('Server is running but database is not connected. Check your DATABASE_URL and database container.');
+  }
+});
 
 export default app;

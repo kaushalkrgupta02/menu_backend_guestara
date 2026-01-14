@@ -1,10 +1,10 @@
-### Guestara – NodeJs Assignment
+# Guestara – NodeJs Assignment
 
 ##  Menu & Services Management Backend
 
 
 
-# Project Structure
+### Project Structure
 ./routes/: Defines the API endpoints.
 
 ./controllers/: Handles HTTP requests, parses data, and returns status codes.
@@ -17,7 +17,7 @@
 
 
 
-# Database Schema Discussion
+### Database Schema Discussion
 Postgres SQL choosen due to almost fix struture and service related to menu & billing inventory that needs data integrity and storage of JSONB data mimics the nosql feature.
 
 key tables:
@@ -31,7 +31,7 @@ tax in items comes from thier category (or subcategory) and use of COALESCE func
 
 
 
-# Features
+### Features
 1. auto tax inheritece
 2. soft delete and availablity check through the actual value present in the coloumn
 3. type-safe development and validation layer
@@ -42,14 +42,14 @@ tax in items comes from thier category (or subcategory) and use of COALESCE func
 
 
 
-# Notes & Tradeoffs
+### Notes & Tradeoffs
 
 
 
 
 
 
-# Steps to run locally
+### Steps to run locally
 
 1. Clone & Dependencies
     1. git clone <url>
