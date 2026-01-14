@@ -1,0 +1,44 @@
+#ignores
+.env
+
+
+
+#modules
+node_modules
+
+
+
+#logs
+
+
+
+
+
+
+#files
+
+# Node
+node_modules
+dist
+
+# Environment
+.env
+.env.*
+
+# Logs
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+logs
+*.log
+
+# Editor
+.vscode
+.idea
+
+# Prisma
+prisma/dev.db
+prisma/migrations
+
+# Docker
+docker-compose.override.yml

@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id            Int       @id @default(autoincrement())
+  name          String    @unique
+  image         String?
+  description   String?
+  taxApplicable Boolean   @default(false)
+  taxPercentage Float?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  subcategories Subcategory[]
+  items         Item[]
+}
+
+model Subcategory {
+  id            Int      @id @default(autoincrement())
+  name          String
+  image         String?
+  description   String?
+  taxApplicable Boolean?
+  taxPercentage Float?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  category      Category  @relation(fields: [categoryId], references: [id])
+  categoryId    Int
+  items         Item[]
+  @@unique([name, categoryId])
+}
+
+model Item {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  image         String?
+  isActive      Boolean   @default(true)
+  pricing       Json
+  isBookable    Boolean   @default(false)
+  availability  Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  categoryId    Int?
+  subcategoryId Int?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  @@index([name])
+}
+
+model Addon {
+  id         Int      @id @default(autoincrement())
+  item       Item     @relation(fields: [itemId], references: [id])
+  itemId     Int
+  name       String
+  price      Float
+  isMandatory Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  item      Item     @relation(fields: [itemId], references: [id])
+  itemId    Int
+  start     DateTime
+  end       DateTime
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
