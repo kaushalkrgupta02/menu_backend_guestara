@@ -5,15 +5,15 @@
 
 
 # Project Structure
-src/routes/: Defines the API endpoints.
+./routes/: Defines the API endpoints.
 
-src/controllers/: Handles HTTP requests, parses data, and returns status codes.
+./controllers/: Handles HTTP requests, parses data, and returns status codes.
 
-src/services/: The business logic like tax inheritance and pricing.
+./services/: The business logic like tax inheritance and pricing.
 
-src/config/: Centralized configuration for the db client and environment variables.
+./config/: Centralized configuration for the db client and environment variables.
 
-src/models.ts: A single source of TypeScript interfaces and shared types
+./models.ts: Source of TypeScript interfaces and shared types
 
 
 
@@ -25,6 +25,7 @@ key tables:
 2. subcategories
 3. items
 4. bookings
+5. Addon
 
 tax in items comes from thier category (or subcategory) and use of COALESCE function of sql used to maintain then database view instead of duplicating data
 

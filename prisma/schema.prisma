@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Category {
@@ -52,8 +51,22 @@ model Item {
   subcategoryId Int?
   category      Category? @relation(fields: [categoryId], references: [id])
   subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
+  addons        Addon[]
+  bookings      Booking[]
   @@index([name])
 }
+
+model Booking {
+  id        Int      @id @default(autoincrement())
+  item      Item     @relation(fields: [itemId], references: [id])
+  itemId    Int
+  start     DateTime
+  end       DateTime
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 
 model Addon {
   id         Int      @id @default(autoincrement())
@@ -66,12 +79,3 @@ model Addon {
   updatedAt  DateTime @updatedAt
 }
 
-model Booking {
-  id        Int      @id @default(autoincrement())
-  item      Item     @relation(fields: [itemId], references: [id])
-  itemId    Int
-  start     DateTime
-  end       DateTime
-  metadata  Json?
-  createdAt DateTime @default(now())
-}
