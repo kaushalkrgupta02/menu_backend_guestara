@@ -68,3 +68,7 @@ tax in items comes from thier category (or subcategory) and use of COALESCE func
 5. start server using npm run dev
 
 
+
+
+to check the schema goto prima studio run 
+$npx prisma studio --config ./prisma/prisma.config.ts

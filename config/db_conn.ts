@@ -8,7 +8,7 @@ const pool = new Pool({
 export async function verifyConnection(): Promise<void> {
   const client = await pool.connect();
   await client.query('SELECT 1');
-  console.log('✓ Database connected successfully');
+  console.log('Database connected successfully');
   client.release();
 }
 

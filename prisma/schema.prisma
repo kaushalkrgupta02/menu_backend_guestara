@@ -7,75 +7,63 @@ datasource db {
 }
 
 model Category {
-  id            Int       @id @default(autoincrement())
-  name          String    @unique
-  image         String?
-  description   String?
-  taxApplicable Boolean   @default(false)
-  taxPercentage Float?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  subcategories Subcategory[]
-  items         Item[]
+  id             String        @id @default(cuid())
+  name           String        @unique
+  image          String?
+  description    String?
+  tax_applicable Boolean       @default(false)
+  tax_percentage Int           @default(0)
+  is_active      Boolean       @default(true)
+  subcategories  Subcategory[]
+  items          Item[]        // Items that belong directly to a Category
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
 }
 
 model Subcategory {
-  id            Int      @id @default(autoincrement())
-  name          String
-  image         String?
-  description   String?
-  taxApplicable Boolean?
-  taxPercentage Float?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  category      Category  @relation(fields: [categoryId], references: [id])
-  categoryId    Int
-  items         Item[]
-  @@unique([name, categoryId])
+  id             String    @id @default(cuid())
+  categoryId     String
+  category       Category  @relation(fields: [categoryId], references: [id])
+  name           String
+  image          String?
+  description    String?
+  is_active      Boolean   @default(true)
+  tax_applicable Boolean?
+  tax_percentage Int?
+  
+  items          Item[]    // Items that belong to a Subcategory
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([categoryId, name])
 }
 
 model Item {
-  id            Int      @id @default(autoincrement())
-  name          String
-  description   String?
-  image         String?
-  isActive      Boolean   @default(true)
-  pricing       Json
-  isBookable    Boolean   @default(false)
-  availability  Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  categoryId    Int?
-  subcategoryId Int?
-  category      Category? @relation(fields: [categoryId], references: [id])
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id])
-  addons        Addon[]
-  bookings      Booking[]
-  @@index([name])
+  id             String       @id @default(cuid())
+  name           String
+  description    String?
+  image          String?
+  is_active      Boolean      @default(true)
+  categoryId     String?
+  category       Category?    @relation(fields: [categoryId], references: [id])
+  subcategoryId  String?
+  subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id])
+  price_config   Json         
+    tax_applicable Boolean?
+  tax_percentage Int?
+  avl_days       String[]     
+  avl_times      Json?        // e.g., [{"start": "08:00", "end": "11:00"}]
+  
+  // addons         Addon[]
+
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
 }
 
-model Booking {
-  id        Int      @id @default(autoincrement())
-  item      Item     @relation(fields: [itemId], references: [id])
-  itemId    Int
-  start     DateTime
-  end       DateTime
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-
-model Addon {
-  id         Int      @id @default(autoincrement())
-  item       Item     @relation(fields: [itemId], references: [id])
-  itemId     Int
-  name       String
-  price      Float
-  isMandatory Boolean @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-}
-
+// model Addon {
+//   id          String   @id @default(cuid())
+//   name        String
+//   price       Float
+//   itemId      String
+//   item        Item     @relation(fields: [itemId], references: [id])
+// }
