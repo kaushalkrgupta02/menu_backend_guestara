@@ -150,6 +150,79 @@ export const getSubcategory = async (req: Request, res: Response) => {
   }
 };
 
+export const patchSubcategory = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const parsed = z.object({
+      categoryId: z.string().optional(),
+      name: z.string().optional(),
+      image: z.string().optional(),
+      description: z.string().optional(),
+      tax_applicable: z.boolean().optional(),
+      tax_percentage: z.number().optional(),
+      is_tax_inherit: z.boolean().optional(),
+      is_active: z.boolean().optional()
+    }).parse(req.body);
+
+    const existing = await prisma.subcategory.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Subcategory not found' });
+
+    // If categoryId is changing, ensure new category exists
+    if (parsed.categoryId && parsed.categoryId !== existing.categoryId) {
+      const cat = await prisma.category.findUnique({ where: { id: parsed.categoryId } });
+      if (!cat) return res.status(404).json({ error: 'Target category not found' });
+    }
+
+    // If name changes, ensure uniqueness within target category
+    const targetCategoryId = parsed.categoryId ?? existing.categoryId;
+    if (parsed.name && parsed.name !== existing.name) {
+      const dup = await prisma.subcategory.findFirst({ where: { name: parsed.name, categoryId: targetCategoryId } });
+      if (dup) return res.status(400).json({ error: 'Subcategory name must be unique within its category' });
+    }
+
+    // Determine whether tax settings changed and validate
+    const prevIsInherit = !!existing.is_tax_inherit;
+    const newIsInherit = parsed.is_tax_inherit !== undefined ? parsed.is_tax_inherit : prevIsInherit;
+
+    const prevTaxApp = existing.tax_applicable;
+    const prevTaxPct = existing.tax_percentage;
+
+    const newTaxApp = parsed.tax_applicable !== undefined ? parsed.tax_applicable : existing.tax_applicable;
+    const newTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : existing.tax_percentage;
+
+    if (newIsInherit === false) {
+      // explicit tax must be valid
+      if (newTaxApp === false && newTaxPct && newTaxPct > 0) throw new Error('If tax_applicable is false, tax_percentage must be 0');
+      if (newTaxApp === true && (!newTaxPct || newTaxPct <= 0)) throw new Error('If tax_applicable is true, tax_percentage must be greater than 0');
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const sub = await tx.subcategory.update({ where: { id }, data: parsed });
+
+      // If tax-related settings changed, update items that inherit
+      const taxChanged = (parsed.is_tax_inherit !== undefined && parsed.is_tax_inherit !== prevIsInherit) ||
+                         (parsed.tax_applicable !== undefined && parsed.tax_applicable !== prevTaxApp) ||
+                         (parsed.tax_percentage !== undefined && parsed.tax_percentage !== prevTaxPct);
+
+      if (taxChanged) {
+        // Clear tax fields on items under this subcategory that inherit
+        await tx.item.updateMany({ where: { subcategoryId: id, is_tax_inherit: true }, data: { tax_percentage: null, tax_applicable: null } });
+      }
+
+      return sub;
+    });
+
+    res.json({
+      ...updated,
+      createdAt: formatTimestampToLocal(updated.createdAt),
+      updatedAt: formatTimestampToLocal(updated.updatedAt)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ error: (err as Error).message });
+  }
+};
+
 export const deactivateSubcategory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

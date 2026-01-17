@@ -90,6 +90,19 @@ const swaggerDocument = {
         },
         required: ['categoryId', 'name']
       },
+      SubcategoryUpdate: {
+        type: 'object',
+        properties: {
+          categoryId: { type: 'string' },
+          name: { type: 'string' },
+          image: { type: 'string', nullable: true },
+          description: { type: 'string', nullable: true },
+          tax_applicable: { type: 'boolean', nullable: true },
+          tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean', nullable: true },
+          is_active: { type: 'boolean', nullable: true }
+        }
+      },
 
       Item: {
         type: 'object',
@@ -282,6 +295,25 @@ const swaggerDocument = {
       get: {
         summary: 'List subcategories',
         parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/categoryId' }],
+        responses: { '200': { description: 'OK' } }
+      }
+    },
+
+    '/subcategories/{id}': {
+      get: {
+        summary: 'Get a subcategory with items',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } }, '404': { description: 'Not found' } }
+      },
+      patch: {
+        summary: 'Patch a subcategory',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/SubcategoryUpdate' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } } }
+      },
+      delete: {
+        summary: 'Soft-delete subcategory',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'OK' } }
       }
     },

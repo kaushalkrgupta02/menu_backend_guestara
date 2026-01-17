@@ -27,9 +27,12 @@ key tables:
 4. bookings
 5. Addon
 
-tax in items comes from thier category (or subcategory) and use of COALESCE function of sql used to maintain then database view instead of duplicating data
 
+>1. The Chain: Item → Subcategory → Category.
+>2. Inheriting: If is_tax_inherit is true, tax fields are stored as null to ensure the "Single Source of Truth" comes from the parent.
+>3. Overriding: Providing a manual tax rate at the item level "shadows" the parent’s value.
 
+The core philosophy is database Normalization. By clearing the fields (setting them to null), you are ensuring that the "truth" about the tax rate only exists in one place (the Category). Updating 1 parent and "nullifying" 100 children is much faster and less likely to lock your database than recalculating and writing new values to 100 children.
 
 ### Features
 1. auto tax inheritece
@@ -43,7 +46,8 @@ tax in items comes from thier category (or subcategory) and use of COALESCE func
 
 
 ### Notes & Tradeoffs
-
+while adding Items to any subcategory
+please make "categoryId": "string" ---> "categoryId": ""
 
 
 

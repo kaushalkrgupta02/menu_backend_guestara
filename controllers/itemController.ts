@@ -6,164 +6,101 @@ import { formatTimestampToLocal } from '../utils/time';
 import {PricingTypeKey} from '../services/price_engine';
 
 
-
 const prisma = getPrisma();
 
 export const createItem = async (req: Request, res: Response) => {
   try {
-    const body = req.body;
-    // Basic validation
     const parsed = z.object({
-      name: z.string(),
+      name: z.string().trim().min(1, "Name is required"),
       description: z.string().optional(),
-      image: z.string().optional(),
+      image: z.string().url().optional().or(z.literal("")),
       categoryId: z.string().optional(),
       subcategoryId: z.string().optional(),
-      base_price: z.number().optional(),
-      //this item belongs to which pricing type
+      base_price: z.number().nonnegative().default(0),
       type_of_pricing: z.string().optional(),
+      price_config: z.any().optional(),
+      is_tax_inherit: z.boolean().optional(),
       tax_applicable: z.boolean().optional(),
       tax_percentage: z.number().optional(),
-      // availability fields validate & normalize below
       avl_days: z.array(z.string()).optional(),
-      avl_times: z.array(z.any()).optional(),
-      is_active: z.boolean().optional()
-    }).parse(body);
+      avl_times: z.array(z.object({ 
+        start: z.string(), 
+        end: z.string() 
+      })).optional(),
+      is_active: z.boolean().optional().default(true)
+    }).parse(req.body);
 
+    const catId = parsed.categoryId?.trim();
+    const subId = parsed.subcategoryId?.trim();
 
+    if (catId && subId) {
+      throw new Error('An item may belong to either a category or a subcategory, not both');
+    }
 
-    // trim and coerce inputs first
-    const categoryIdRaw = parsed.categoryId ? parsed.categoryId.trim() : undefined;
-    const subcategoryIdRaw = parsed.subcategoryId ? parsed.subcategoryId.trim() : undefined;
+    const hasTaxPayload = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
 
-    // Determine tax inheritance for item
-    const taxProvided = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
+    // Explicit check requested: If user says "Inherit", they cannot send "Tax Data"
+    if (parsed.is_tax_inherit === true && hasTaxPayload) {
+      return res.status(400).json({ 
+        error: "Invalid request: Cannot accept tax payloads when is_tax_inherit is true." 
+      });
+    }
+
+    // Default to true if no tax info is provided, otherwise respect user or auto-set to false
+    const isInheriting = parsed.is_tax_inherit ?? !hasTaxPayload;
 
     const data: any = {
       name: parsed.name,
       description: parsed.description,
       image: parsed.image,
       base_price: parsed.base_price,
-      type_of_pricing: parsed.type_of_pricing as PricingTypeKey | undefined,
-      is_tax_inherit: !taxProvided,
-      tax_applicable: taxProvided ? (parsed.tax_applicable !== undefined ? parsed.tax_applicable : (parsed.tax_percentage !== undefined ? parsed.tax_percentage > 0 : false)) : null as any,
-      tax_percentage: taxProvided ? (parsed.tax_percentage !== undefined ? parsed.tax_percentage : 0) : null as any,
-      // avl fields normalized below (undefined if absent)
-      is_active: parsed.is_active
-    };     
+      type_of_pricing: parsed.type_of_pricing,
+      price_config: parsed.price_config,
+      is_active: parsed.is_active,
+      is_tax_inherit: isInheriting,
+      // If inheriting, keep it clean with NULL. If not, map the values.
+      tax_applicable: isInheriting ? null : (parsed.tax_applicable ?? (parsed.tax_percentage! > 0)),
+      tax_percentage: isInheriting ? null : (parsed.tax_percentage ?? 0),
+    };
 
-    // An item may belong to either a category OR a subcategory, but not both (use trimmed/coerced values)
-    if (categoryIdRaw && subcategoryIdRaw) {
-      throw new Error('An item may belong to either a category or a subcategory, not both');
+    if (!isInheriting) {
+      if (data.tax_applicable && data.tax_percentage <= 0) {
+        throw new Error('tax_percentage must be > 0 when tax_applicable is true');
+      }
+      if (!data.tax_applicable && data.tax_percentage > 0) {
+        throw new Error('tax_percentage must be 0 when tax_applicable is false');
+      }
     }
 
-    // name unique under same parent hence check categoryId and subcategoryId and then item name uniqueness
-    const existingItem = await prisma.item.findFirst({
-      where: {
-        name: parsed.name,
-        categoryId: categoryIdRaw || null,
-        subcategoryId: subcategoryIdRaw || null
-      }
+    // Parent Record Verification
+    if (catId) {
+      const exists = await prisma.category.findUnique({ where: { id: catId } });
+      if (!exists) throw new Error('Category not found');
+      data.category = { connect: { id: catId } };
+    } else if (subId) {
+      const exists = await prisma.subcategory.findUnique({ where: { id: subId } });
+      if (!exists) throw new Error('Subcategory not found');
+      data.subcategory = { connect: { id: subId } };
+    }
+
+    // Name Uniqueness Check
+    const duplicate = await prisma.item.findFirst({
+      where: { name: data.name, categoryId: catId || null, subcategoryId: subId || null }
     });
+    if (duplicate) throw new Error('An item with this name already exists under this parent');
 
-    if (existingItem) {
-      throw new Error('An item with the same name already exists under the specified category or subcategory');
+    // Availability Normalization
+    if (parsed.avl_days) {
+      const valid = ['mon','tue','wed','thu','fri','sat','sun'];
+      data.avl_days = parsed.avl_days.map(d => d.toLowerCase()).filter(d => valid.includes(d));
+    }
+    if (parsed.avl_times) {
+      const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+      data.avl_times = parsed.avl_times.filter(t => 
+        timeRegex.test(t.start) && timeRegex.test(t.end) && t.start < t.end
+      );
     }
 
-    // Normalize availability fields: validate and coerce invalid inputs to undefined (omit from create)
-    const validDays = ['mon','tue','wed','thu','fri','sat','sun'];
-
-    let avlDays: string[] | undefined = undefined;
-    if (Array.isArray(parsed.avl_days) && parsed.avl_days.length) {
-      const cleaned = parsed.avl_days
-        .filter(Boolean)
-        .map((d: string) => (typeof d === 'string' ? d.trim().toLowerCase() : ''))
-        .filter((d: string) => validDays.includes(d));
-      avlDays = cleaned.length ? cleaned : undefined;
-    }
-
-    const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
-    let avlTimes: { start: string; end: string }[] | undefined = undefined;
-    if (Array.isArray(parsed.avl_times) && parsed.avl_times.length) {
-      const cleaned: { start: string; end: string }[] = [];
-      for (const t of parsed.avl_times) {
-        if (!t || typeof t.start !== 'string' || typeof t.end !== 'string') continue;
-        const start = t.start.trim();
-        const end = t.end.trim();
-        if (!timeRegex.test(start) || !timeRegex.test(end)) continue;
-        if (start >= end) continue;
-        cleaned.push({ start, end });
-      }
-      avlTimes = cleaned.length ? cleaned : undefined;
-    }
-
-    if (typeof avlDays !== 'undefined') data.avl_days = avlDays;
-    if (typeof avlTimes !== 'undefined') data.avl_times = avlTimes;
-
-    // check the tax_applicable and tax_percentage logic from the category or subcategory provided and then inherit if not provided
-    if (categoryIdRaw) {
-      const category = await prisma.category.findUnique({ where: { id: categoryIdRaw } });
-      if (!category) throw new Error('Category not found');
-
-      // Prepare connect for creation
-      data.category = { connect: { id: categoryIdRaw } };
-
-      // If only tax_percentage is provided, infer tax_applicable from it
-      if (data.tax_applicable === undefined && data.tax_percentage !== undefined) {
-        data.tax_applicable = data.tax_percentage > 0;
-      }
-
-      if (data.tax_applicable === true) {
-        // If item explicitly wants tax but hasn't provided a positive percentage, try to inherit from category
-        if (data.tax_percentage === undefined || data.tax_percentage <= 0) {
-          if (category.tax_applicable && category.tax_percentage && category.tax_percentage > 0) {
-            data.tax_percentage = category.tax_percentage;
-          } else {
-            throw new Error('tax_percentage must be greater than 0 when tax_applicable is true');
-          }
-        }
-        // If tax_percentage > 0 is provided, accept it (item-level override)
-      } else if (data.tax_applicable === false) {
-        // Inconsistent: tax_applicable false but tax_percentage > 0
-        if (data.tax_percentage && data.tax_percentage > 0) {
-          throw new Error('If tax_applicable is false, tax_percentage must be 0');
-        }
-        data.tax_percentage = 0;
-      } else {
-        // No explicit item tax provided and item is set to inherit -> leave tax fields unset so inheritance happens at read-time
-      }
-    } else if (subcategoryIdRaw) {
-      const subcategory = await prisma.subcategory.findUnique({ where: { id: subcategoryIdRaw } });
-      if (!subcategory) throw new Error('Subcategory not found');
-
-      // Prepare connect for creation
-      data.subcategory = { connect: { id: subcategoryIdRaw } };
-
-      // If only tax_percentage is provided, infer tax_applicable from it
-      if (data.tax_applicable === undefined && data.tax_percentage !== undefined) {
-        data.tax_applicable = data.tax_percentage > 0;
-      }
-
-      if (data.tax_applicable === true) {
-        // If item explicitly wants tax but hasn't provided a positive percentage, try to inherit from subcategory
-        if (data.tax_percentage === undefined || data.tax_percentage <= 0) {
-          if (subcategory.tax_applicable && subcategory.tax_percentage && subcategory.tax_percentage > 0) {
-            data.tax_percentage = subcategory.tax_percentage;
-          } else {
-            throw new Error('tax_percentage must be greater than 0 when tax_applicable is true');
-          }
-        }
-      } else if (data.tax_applicable === false) {
-        if (data.tax_percentage && data.tax_percentage > 0) {
-          throw new Error('If tax_applicable is false, tax_percentage must be 0');
-        }
-        data.tax_percentage = 0;
-      } else {
-        // No explicit item tax provided and item is set to inherit -> leave tax fields unset so inheritance happens at read-time
-      }
-    }
-       
-    //final creation
     const item = await prisma.item.create({ data });
 
     res.status(201).json({
@@ -171,23 +108,10 @@ export const createItem = async (req: Request, res: Response) => {
       createdAt: formatTimestampToLocal(item.createdAt),
       updatedAt: formatTimestampToLocal(item.updatedAt)
     });
-  } catch (err) {
-    try {
-      if (err && (err as any).issues) {
-        const zErr = err as any;
-        console.error('Validation error:', JSON.stringify(zErr.issues));
-        return res.status(400).json({ error: 'Validation failed', details: zErr.issues });
-      }
 
-      // Defensive logging for unexpected errors (avoid util.inspect crashes)
-      const message = err && (err as any).message ? (err as any).message : String(err);
-      console.error('Error in createItem:', message);
-      if (err && (err as any).stack) console.error((err as any).stack);
-      res.status(500).json({ error: message });
-    } catch (logErr) {
-      console.error('Error while handling error:', String(logErr));
-      res.status(500).json({ error: 'Internal server error' });
-    }
+  } catch (err: any) {
+    const message = err instanceof z.ZodError ? err.issues : err.message;
+    res.status(400).json({ error: message });
   }
 };
 
