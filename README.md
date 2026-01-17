@@ -49,7 +49,7 @@ The core philosophy is database Normalization. By clearing the fields (setting t
 while adding Items to any subcategory
 please make "categoryId": "string" ---> "categoryId": ""
 
-
+I have added the helper fuction for is_active status of an item (not performing the core db opertion for updating the is_active value). Granual Control and JOIN operation only.
 
 
 

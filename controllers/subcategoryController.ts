@@ -134,9 +134,10 @@ export const getSubcategory = async (req: Request, res: Response) => {
     const formattedItems = subcategory.items.map((it) => {
       const itemWithParents = { ...it, category: subcategory.category || null, subcategory };
       const price = (require('../services/price_engine') as any).resolveItemPrice(itemWithParents, {} as any);
+      const effectiveActive = require('../utils/visibility').isItemEffectivelyActive(itemWithParents as any);
       return {
         ...it,
-        is_active: !!it.is_active && !!subcategory.is_active && (subcategory.category ? !!subcategory.category.is_active : true),
+        is_active: effectiveActive,
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
         updatedAt: formatTimestampToLocal(it.updatedAt)

@@ -101,9 +101,10 @@ export const getCategory = async (req: Request, res: Response) => {
     const formattedItems = category.items.map((it) => {
       const itemWithParents = { ...it, category, subcategory: null };
       const price = (require('../services/price_engine') as any).resolveItemPrice(itemWithParents, {} as any);
+      const effectiveActive = require('../utils/visibility').isItemEffectivelyActive(itemWithParents as any);
       return {
         ...it,
-        is_active: !!it.is_active && !!category.is_active,
+        is_active: effectiveActive,
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
         updatedAt: formatTimestampToLocal(it.updatedAt)
@@ -157,17 +158,6 @@ export const patchCategory = async (req: Request, res: Response) => {
         data: parsed 
       });
 
-      // A. Handle Active State Cascade (only if changing from true to false)
-      if (parsed.is_active === false) {
-        await tx.subcategory.updateMany({ where: { categoryId: id }, data: { is_active: false } });
-        await tx.item.updateMany({ where: { categoryId: id }, data: { is_active: false } });
-        
-        // Items under subcategories
-        const subIds = (await tx.subcategory.findMany({ where: { categoryId: id }, select: { id: true } })).map(s => s.id);
-        if (subIds.length) {
-          await tx.item.updateMany({ where: { subcategoryId: { in: subIds } }, data: { is_active: false } });
-        }
-      }
 
       // B. Handle Tax Cascade
       const taxChanged = (parsed.tax_applicable !== undefined && parsed.tax_applicable !== existing.tax_applicable) ||

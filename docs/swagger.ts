@@ -301,11 +301,7 @@ const swaggerDocument = {
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CategoryUpdate' } } } },
         responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Category' } } } } }
       },
-      delete: {
-        summary: 'Soft-delete category',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'OK' } }
-      }
+
     },
 
     '/subcategories': {
@@ -333,11 +329,7 @@ const swaggerDocument = {
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/SubcategoryUpdate' } } } },
         responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } } }
       },
-      delete: {
-        summary: 'Soft-delete subcategory',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { '200': { description: 'OK' } }
-      }
+
     },
 
     '/items': {
