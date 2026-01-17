@@ -8,8 +8,13 @@ const app = express();
 app.use(express.json());
 
 // Routes
+import categoriesRouter from './routes/categories';
+import subcategoriesRouter from './routes/subcategories';
+import itemsRouter from './routes/items';
 
-
+app.use('/categories', categoriesRouter);
+app.use('/subcategories', subcategoriesRouter);
+app.use('/items', itemsRouter);
 
 // Swagger 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

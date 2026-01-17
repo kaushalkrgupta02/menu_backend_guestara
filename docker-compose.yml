@@ -18,6 +18,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin-container
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_EMAIL}"
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_PASSWORD}"
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
+
+    ports:
+      - "8080:80"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata: 
+  pgadmin_data:

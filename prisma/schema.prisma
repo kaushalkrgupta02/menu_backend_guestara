@@ -12,7 +12,7 @@ model Category {
   image          String?
   description    String?
   tax_applicable Boolean       @default(false)
-  tax_percentage Int           @default(0)
+  tax_percentage Float           @default(0)
   is_active      Boolean       @default(true)
   subcategories  Subcategory[]
   items          Item[]        // Items that belong directly to a Category
@@ -29,7 +29,7 @@ model Subcategory {
   description    String?
   is_active      Boolean   @default(true)
   tax_applicable Boolean?
-  tax_percentage Int?
+  tax_percentage Float?
   
   items          Item[]    // Items that belong to a Subcategory
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
@@ -40,7 +40,7 @@ model Subcategory {
 
 model Item {
   id             String       @id @default(cuid())
-  name           String
+  name           String       
   description    String?
   image          String?
   is_active      Boolean      @default(true)
@@ -48,14 +48,13 @@ model Item {
   category       Category?    @relation(fields: [categoryId], references: [id])
   subcategoryId  String?
   subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id])
-  price_config   Json         
-    tax_applicable Boolean?
+  base_price     Float?
+  type_of_pricing String?     // e.g., A means 'STATIC', B means 'TIERED', etc.
+  price_config   Json?         
+  tax_applicable Boolean?
   tax_percentage Int?
   avl_days       String[]     
   avl_times      Json?        // e.g., [{"start": "08:00", "end": "11:00"}]
-  
-  // addons         Addon[]
-
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
 }
