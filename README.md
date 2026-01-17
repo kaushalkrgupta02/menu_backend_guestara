@@ -52,6 +52,10 @@ please make "categoryId": "string" ---> "categoryId": ""
 I have added the helper fuction for is_active status of an item (not performing the core db opertion for updating the is_active value). Granual Control and JOIN operation only.
 
 
+in Items isAvaiable means “Is the item available according to pricing/availability rules (e.g., avl_days, avl_times, dynamic pricing constraints)?”
+
+
+
 
 ### Steps to run locally
 

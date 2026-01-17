@@ -160,6 +160,110 @@ export const listItems = async (req: Request, res: Response) => {
   }
 };
 
+export const filterItems = async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    const categoryActiveRaw = req.query.categoryActive as string | undefined;
+    const subcategoryActiveRaw = req.query.subcategoryActive as string | undefined;
+
+    const categoryActive = categoryActiveRaw === 'true' ? true : categoryActiveRaw === 'false' ? false : undefined;
+    const subcategoryActive = subcategoryActiveRaw === 'true' ? true : subcategoryActiveRaw === 'false' ? false : undefined;
+
+    const where: any = {};
+    if (categoryActive !== undefined) where.category = { is_active: categoryActive };
+    if (subcategoryActive !== undefined) where.subcategory = { is_active: subcategoryActive };
+
+    const [total, items] = await prisma.$transaction([
+      prisma.item.count({ where }),
+      prisma.item.findMany({
+        where,
+        include: { category: true, subcategory: true },
+        orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
+        skip: (page - 1) * limit,
+        take: limit
+      })
+    ]);
+
+    const itemsWithPrice = items.map((it) => {
+      const price = resolveItemPrice(it as any, {} as any);
+      return {
+        ...it,
+        pricingIsAvailable: !!price.isAvailable,
+        is_active: isItemEffectivelyActive(it as any),
+        resolvedPrice: price,
+        createdAt: formatTimestampToLocal(it.createdAt),
+        updatedAt: formatTimestampToLocal(it.updatedAt)
+      };
+    });
+
+    res.json({ page, limit, total, items: itemsWithPrice });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
+export const getItemsByParent = async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    const categoryId = req.query.categoryId as string | undefined;
+    const subcategoryId = req.query.subcategoryId as string | undefined;
+    const parentActiveRaw = (req.query.is_active as string | undefined) ?? (req.query.parentActive as string | undefined);
+    const parentActive = parentActiveRaw === 'true' ? true : parentActiveRaw === 'false' ? false : undefined;
+
+    // Validate inputs: require exactly one of categoryId or subcategoryId
+    if ((!categoryId && !subcategoryId) || (categoryId && subcategoryId)) {
+      return res.status(400).json({ error: 'Provide exactly one of categoryId or subcategoryId' });
+    }
+
+    const where: any = {};
+    if (categoryId) {
+      where.categoryId = categoryId;
+      if (parentActive !== undefined) where.category = { is_active: parentActive };
+    }
+    if (subcategoryId) {
+      where.subcategoryId = subcategoryId;
+      if (parentActive !== undefined) where.subcategory = { is_active: parentActive };
+    }
+
+    const [total, items] = await prisma.$transaction([
+      prisma.item.count({ where }),
+      prisma.item.findMany({
+        where,
+        include: { category: true, subcategory: true },
+        orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
+        skip: (page - 1) * limit,
+        take: limit
+      })
+    ]);
+
+    const itemsWithPrice = items.map((it) => {
+      const price = resolveItemPrice(it as any, {} as any);
+      return {
+        ...it,
+        pricingIsAvailable: !!price.isAvailable,
+        is_active: isItemEffectivelyActive(it as any),
+        resolvedPrice: price,
+        createdAt: formatTimestampToLocal(it.createdAt),
+        updatedAt: formatTimestampToLocal(it.updatedAt)
+      };
+    });
+
+    res.json({ page, limit, total, items: itemsWithPrice });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: (err as Error).message });
+  }
+};
+
 export const getItem = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;

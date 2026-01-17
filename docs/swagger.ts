@@ -346,6 +346,33 @@ const swaggerDocument = {
       }
     },
 
+    '/items/filter': {
+      get: {
+        summary: 'Filter items by parent active flags',
+        parameters: [
+          { name: 'categoryActive', in: 'query', schema: { type: 'boolean' }, description: 'Filter items whose parent category is active (true) or inactive (false)' },
+          { name: 'subcategoryActive', in: 'query', schema: { type: 'boolean' }, description: 'Filter items whose parent subcategory is active (true) or inactive (false)' },
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' }
+        ],
+        responses: { '200': { description: 'OK' } }
+      }
+    },
+
+    '/items/by-parent': {
+      get: {
+        summary: 'Get items for a specific parent (category or subcategory) and optionally filter by parent is_active',
+        parameters: [
+          { name: 'categoryId', in: 'query', schema: { type: 'string' }, description: 'Provide category id to list items under this category (exclusive with subcategoryId)' },
+          { name: 'subcategoryId', in: 'query', schema: { type: 'string' }, description: 'Provide subcategory id to list items under this subcategory (exclusive with categoryId)' },
+          { name: 'is_active', in: 'query', schema: { type: 'boolean' }, description: 'Optional: filter by parent is_active (true|false)' },
+          { $ref: '#/components/parameters/page' },
+          { $ref: '#/components/parameters/limit' }
+        ],
+        responses: { '200': { description: 'OK' } }
+      }
+    },
+
     '/items/{id}': {
       patch: {
         summary: 'Patch an item',

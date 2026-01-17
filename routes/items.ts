@@ -1,9 +1,11 @@
 import { Router } from 'express';
-import { createItem, listItems, getItem, getItemPrice, patchItem } from '../controllers/itemController';
+import { createItem, listItems, getItem, getItemPrice, patchItem, filterItems, getItemsByParent } from '../controllers/itemController';
 
 const router = Router();
 
 router.post('/', createItem);
+router.get('/by-parent', getItemsByParent);
+router.get('/filter', filterItems);
 router.get('/', listItems);
 router.get('/:id', getItem);
 router.patch('/:id', patchItem);
