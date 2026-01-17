@@ -29,25 +29,46 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
   // If price_config is not defined, fall back to using base_price (simple STATIC behavior)
   const now = context.currentTime ? new Date(context.currentTime) : new Date();
 
+  const resolveTax = (item: any) => {
+    // Resolve tax respecting is_tax_inherit flags on item and subcategory
+    if (!item) return { taxPercentage: 0, taxApplicable: false };
+
+    if (item.is_tax_inherit === false) {
+      return { taxPercentage: item.tax_percentage ?? 0, taxApplicable: !!item.tax_applicable };
+    }
+
+    if (item.subcategory) {
+      if (item.subcategory.is_tax_inherit === false) {
+        return { taxPercentage: item.subcategory.tax_percentage ?? 0, taxApplicable: !!item.subcategory.tax_applicable };
+      }
+      if (item.subcategory.category) {
+        return { taxPercentage: item.subcategory.category.tax_percentage ?? 0, taxApplicable: !!item.subcategory.category.tax_applicable };
+      }
+    }
+
+    if (item.category) {
+      return { taxPercentage: item.category.tax_percentage ?? 0, taxApplicable: !!item.category.tax_applicable };
+    }
+
+    return { taxPercentage: 0, taxApplicable: false };
+  };
+
   if (!item || !item.price_config) {
     const basePrice = typeof item?.base_price === 'number' ? item.base_price : 0;
     const discount = 0;
     const isAvailable = true;
 
-    const taxPercent = item?.tax_percentage ??
-                       item?.subcategory?.tax_percentage ??
-                       item?.subcategory?.category?.tax_percentage ??
-                       item?.category?.tax_percentage ?? 0;
+    const { taxPercentage } = resolveTax(item);
 
     const finalBase = Math.max(0, basePrice - discount);
-    const taxAmount = (finalBase * taxPercent) / 100;
+    const taxAmount = (finalBase * taxPercentage) / 100;
 
     return {
       isAvailable,
       pricingType: 'STATIC',
       basePrice,
       discount,
-      taxPercentage: taxPercent,
+      taxPercentage,
       taxAmount,
       grandTotal: finalBase + taxAmount
     };
@@ -93,20 +114,17 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
   }
 
   // Resolve Inherited Tax
-  const taxPercent = item.tax_percentage ?? 
-                     item.subcategory?.tax_percentage ?? 
-                     item.subcategory?.category?.tax_percentage ?? 
-                     item.category?.tax_percentage ?? 0;
+  const { taxPercentage } = resolveTax(item);
 
   const finalBase = Math.max(0, basePrice - discount);
-  const taxAmount = (finalBase * taxPercent) / 100;
+  const taxAmount = (finalBase * taxPercentage) / 100;
 
   return {
     isAvailable,
     pricingType: type,
     basePrice,
     discount,
-    taxPercentage: taxPercent,
+    taxPercentage: taxPercentage,
     taxAmount,
     grandTotal: finalBase + taxAmount
   };

@@ -36,14 +36,18 @@ export const createItem = async (req: Request, res: Response) => {
     const categoryIdRaw = parsed.categoryId ? parsed.categoryId.trim() : undefined;
     const subcategoryIdRaw = parsed.subcategoryId ? parsed.subcategoryId.trim() : undefined;
 
+    // Determine tax inheritance for item
+    const taxProvided = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
+
     const data: any = {
       name: parsed.name,
       description: parsed.description,
       image: parsed.image,
       base_price: parsed.base_price,
       type_of_pricing: parsed.type_of_pricing as PricingTypeKey | undefined,
-      tax_applicable: parsed.tax_applicable,
-      tax_percentage: parsed.tax_percentage,
+      is_tax_inherit: !taxProvided,
+      tax_applicable: taxProvided ? (parsed.tax_applicable !== undefined ? parsed.tax_applicable : (parsed.tax_percentage !== undefined ? parsed.tax_percentage > 0 : false)) : null as any,
+      tax_percentage: taxProvided ? (parsed.tax_percentage !== undefined ? parsed.tax_percentage : 0) : null as any,
       // avl fields normalized below (undefined if absent)
       is_active: parsed.is_active
     };     
@@ -126,9 +130,7 @@ export const createItem = async (req: Request, res: Response) => {
         }
         data.tax_percentage = 0;
       } else {
-        // Neither tax fields provided -> inherit from category
-        data.tax_applicable = category.tax_applicable;
-        data.tax_percentage = category.tax_percentage;
+        // No explicit item tax provided and item is set to inherit -> leave tax fields unset so inheritance happens at read-time
       }
     } else if (subcategoryIdRaw) {
       const subcategory = await prisma.subcategory.findUnique({ where: { id: subcategoryIdRaw } });
@@ -157,8 +159,7 @@ export const createItem = async (req: Request, res: Response) => {
         }
         data.tax_percentage = 0;
       } else {
-        data.tax_applicable = subcategory.tax_applicable;
-        data.tax_percentage = subcategory.tax_percentage;
+        // No explicit item tax provided and item is set to inherit -> leave tax fields unset so inheritance happens at read-time
       }
     }
        
@@ -209,6 +210,7 @@ export const listItems = async (req: Request, res: Response) => {
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
+        include: { category: true, subcategory: true },
         orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
         skip: (page - 1) * limit,
         take: limit

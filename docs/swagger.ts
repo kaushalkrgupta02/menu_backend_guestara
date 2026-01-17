@@ -49,6 +49,17 @@ const swaggerDocument = {
         },
         required: ['name']
       },
+      CategoryUpdate: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          image: { type: 'string', nullable: true },
+          description: { type: 'string', nullable: true },
+          tax_applicable: { type: 'boolean' },
+          tax_percentage: { type: 'integer' },
+          is_active: { type: 'boolean' }
+        }
+      },
       Subcategory: {
         type: 'object',
         properties: {
@@ -60,6 +71,7 @@ const swaggerDocument = {
           is_active: { type: 'boolean' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
         }
@@ -73,6 +85,7 @@ const swaggerDocument = {
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean', nullable: true },
           is_active: { type: 'boolean', nullable: true }
         },
         required: ['categoryId', 'name']
@@ -95,6 +108,7 @@ const swaggerDocument = {
           type_of_pricing: { type: 'string', nullable: true },  
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean' },
           avl_days: { type: 'array', items: { type: 'string' } },
           avl_times: { 
             type: 'array', 
@@ -118,6 +132,7 @@ const swaggerDocument = {
           type_of_pricing: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean', nullable: true },
           avl_days: { type: 'array', items: { type: 'string' } },
           avl_times: { 
             type: 'array', 
@@ -244,6 +259,12 @@ const swaggerDocument = {
           },
           '404': { description: 'Not found' }
         }
+      },
+      patch: {
+        summary: 'Patch a category ',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CategoryUpdate' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Category' } } } } }
       },
       delete: {
         summary: 'Soft-delete category',

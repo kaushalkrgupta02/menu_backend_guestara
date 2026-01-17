@@ -30,6 +30,7 @@ model Subcategory {
   is_active      Boolean   @default(true)
   tax_applicable Boolean?
   tax_percentage Float?
+  is_tax_inherit  Boolean  @default(true)
   
   items          Item[]    // Items that belong to a Subcategory
   createdAt      DateTime  @default(now()) @db.Timestamptz(3)
@@ -50,7 +51,8 @@ model Item {
   subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id])
   base_price     Float?
   type_of_pricing String?     // e.g., A means 'STATIC', B means 'TIERED', etc.
-  price_config   Json?         
+  price_config   Json?
+  is_tax_inherit Boolean     @default(true)
   tax_applicable Boolean?
   tax_percentage Int?
   avl_days       String[]     

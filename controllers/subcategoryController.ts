@@ -30,13 +30,20 @@ export const createSubcategory = async (req: Request, res: Response) => {
 
 
 
-    // if tax_applicable and tax_percentage are not provided or null then inherit from category
-    if (parsed.tax_applicable == null && parsed.tax_percentage == null) {
+    // Determine tax inheritance: if tax fields are not provided, mark subcategory as inheriting and leave tax fields null
+    let isTaxInherit = true;
+    let tax_applicable: boolean | undefined = parsed.tax_applicable;
+    let tax_percentage: number | undefined = parsed.tax_percentage;
+
+    if (parsed.tax_applicable !== undefined || parsed.tax_percentage !== undefined) {
+      // explicit tax provided => do not inherit
+      isTaxInherit = false;
+    } else {
+      // no explicit tax: ensure parent exists; subcategory will inherit at runtime
       const category = await prisma.category.findUnique({ where: { id: parsed.categoryId } });
       if (!category) return res.status(404).json({ error: 'Category not found' });
-
-      parsed.tax_applicable = category.tax_applicable;
-      parsed.tax_percentage = category.tax_percentage;
+      tax_applicable = undefined;
+      tax_percentage = undefined;
     }
 
     const subcategory = await prisma.subcategory.create({
@@ -45,8 +52,9 @@ export const createSubcategory = async (req: Request, res: Response) => {
         name: parsed.name,
         image: parsed.image,
         description: parsed.description,
-        tax_applicable: parsed.tax_applicable,
-        tax_percentage: parsed.tax_percentage,
+        tax_applicable: isTaxInherit ? null as any : tax_applicable,
+        tax_percentage: isTaxInherit ? null as any : (tax_percentage as any),
+        is_tax_inherit: isTaxInherit,
         is_active: parsed.is_active
       }
     });
@@ -123,12 +131,17 @@ export const getSubcategory = async (req: Request, res: Response) => {
       updatedAt: formatTimestampToLocal(subcategory.category.updatedAt)
     } : null;
 
-    const formattedItems = subcategory.items.map((it) => ({
-      ...it,
-      is_active: !!it.is_active && !!subcategory.is_active && (subcategory.category ? !!subcategory.category.is_active : true),
-      createdAt: formatTimestampToLocal(it.createdAt),
-      updatedAt: formatTimestampToLocal(it.updatedAt)
-    }));
+    const formattedItems = subcategory.items.map((it) => {
+      const itemWithParents = { ...it, category: subcategory.category || null, subcategory };
+      const price = (require('../services/price_engine') as any).resolveItemPrice(itemWithParents, {} as any);
+      return {
+        ...it,
+        is_active: !!it.is_active && !!subcategory.is_active && (subcategory.category ? !!subcategory.category.is_active : true),
+        resolvedPrice: price,
+        createdAt: formatTimestampToLocal(it.createdAt),
+        updatedAt: formatTimestampToLocal(it.updatedAt)
+      };
+    });
 
     res.json({ ...formattedSub, category: formattedCategory, items: formattedItems });
   } catch (err) {
