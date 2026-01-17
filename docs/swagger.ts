@@ -156,6 +156,28 @@ const swaggerDocument = {
         },
         required: ['name']
       },
+      ItemUpdate: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string', nullable: true },
+          image: { type: 'string', nullable: true },
+          categoryId: { type: 'string', nullable: true },
+          subcategoryId: { type: 'string', nullable: true },
+          base_price: { type: 'number', nullable: true },
+          type_of_pricing: { type: 'string', nullable: true },
+          tax_applicable: { type: 'boolean', nullable: true },
+          tax_percentage: { type: 'integer', nullable: true },
+          is_tax_inherit: { type: 'boolean', nullable: true },
+          avl_days: { type: 'array', items: { type: 'string' } },
+          avl_times: { 
+            type: 'array', 
+            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
+            nullable: true 
+          },
+          is_active: { type: 'boolean', nullable: true }
+        }
+      },
       ItemPriceResponse: {
         type: 'object',
         properties: {
@@ -330,6 +352,17 @@ const swaggerDocument = {
         responses: { '200': { description: 'OK' } }
       }
     },
+
+    '/items/{id}': {
+      patch: {
+        summary: 'Patch an item',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemUpdate' } } } },
+        responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } } } }
+      }
+    },
+
+
 
     '/items/{id}/price': {
       get: {

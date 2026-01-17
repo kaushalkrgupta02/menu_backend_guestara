@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { createItem, listItems, getItem, getItemPrice } from '../controllers/itemController';
+import { createItem, listItems, getItem, getItemPrice, patchItem } from '../controllers/itemController';
 
 const router = Router();
 
 router.post('/', createItem);
 router.get('/', listItems);
 router.get('/:id', getItem);
+router.patch('/:id', patchItem);
 router.get('/:id/price', getItemPrice);
 router.delete('/:id', async (req, res) => {
   // Soft delete

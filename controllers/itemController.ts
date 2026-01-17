@@ -229,3 +229,136 @@ export const getItemPrice = async (req: Request, res: Response) => {
     res.status(500).json({ error: (err as Error).message });
   }
 };
+
+export const patchItem = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const parsed = z.object({
+      name: z.string().trim().optional(),
+      description: z.string().optional(),
+      image: z.string().url().optional().or(z.literal('')).optional(),
+      categoryId: z.string().optional(),
+      subcategoryId: z.string().optional(),
+      base_price: z.number().nonnegative().optional(),
+      type_of_pricing: z.string().optional(),
+      price_config: z.any().optional(),
+      is_tax_inherit: z.boolean().optional(),
+      tax_applicable: z.boolean().optional(),
+      tax_percentage: z.number().optional(),
+      avl_days: z.array(z.string()).optional(),
+      avl_times: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
+      is_active: z.boolean().optional()
+    }).parse(req.body);
+
+    const existing = await prisma.item.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Item not found' });
+
+    // Parent exclusivity
+    const catId = parsed.categoryId?.trim();
+    const subId = parsed.subcategoryId?.trim();
+    if (catId && subId) return res.status(400).json({ error: 'Item may belong to either a category or subcategory, not both' });
+
+    // Parent existence checks if changing
+    if (catId && catId !== existing.categoryId) {
+      const cat = await prisma.category.findUnique({ where: { id: catId } });
+      if (!cat) return res.status(404).json({ error: 'Category not found' });
+    }
+    if (subId && subId !== existing.subcategoryId) {
+      const sub = await prisma.subcategory.findUnique({ where: { id: subId } });
+      if (!sub) return res.status(404).json({ error: 'Subcategory not found' });
+    }
+
+    // Name uniqueness check within target parent
+    const targetCategoryId = parsed.categoryId ?? existing.categoryId;
+    const targetSubcategoryId = parsed.subcategoryId ?? existing.subcategoryId;
+    if (parsed.name && parsed.name !== existing.name) {
+      const dup = await prisma.item.findFirst({ where: {
+        name: parsed.name,
+        categoryId: targetCategoryId ?? null,
+        subcategoryId: targetSubcategoryId ?? null,
+        NOT: { id }
+      }});
+      if (dup) return res.status(400).json({ error: 'An item with this name already exists under this parent' });
+    }
+
+    // Tax inheritance logic
+    const prevIsInherit = !!existing.is_tax_inherit;
+    const newIsInherit = parsed.is_tax_inherit !== undefined ? parsed.is_tax_inherit : prevIsInherit;
+    const hasTaxPayload = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
+
+    if (newIsInherit === true && hasTaxPayload) {
+      return res.status(400).json({ error: 'Invalid request: Cannot accept tax payloads when is_tax_inherit is true.' });
+    }
+
+    if (newIsInherit === false) {
+      const resultingTaxApp = parsed.tax_applicable !== undefined ? parsed.tax_applicable : existing.tax_applicable;
+      const resultingTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : existing.tax_percentage;
+      if (resultingTaxApp === null || resultingTaxApp === undefined || resultingTaxPct === null) {
+        return res.status(400).json({ error: 'Explicit tax payload required when disabling inheritance' });
+      }
+      if (resultingTaxApp === true && (resultingTaxPct === null || resultingTaxPct === undefined || resultingTaxPct <= 0)) {
+        return res.status(400).json({ error: 'If tax_applicable is true, tax_percentage must be > 0' });
+      }
+      if (resultingTaxApp === false && resultingTaxPct && resultingTaxPct > 0) {
+        return res.status(400).json({ error: 'If tax_applicable is false, tax_percentage must be 0' });
+      }
+    }
+
+    // Build update payload
+    const data: any = { ...parsed };
+
+    // Normalize availability if provided
+    if (parsed.avl_days) {
+      const valid = ['mon','tue','wed','thu','fri','sat','sun'];
+      data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => valid.includes(d));
+    }
+    if (parsed.avl_times) {
+      const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+      data.avl_times = parsed.avl_times.filter((t: any) => timeRegex.test(t.start) && timeRegex.test(t.end) && t.start < t.end);
+    }
+
+    // Handle tax fields based on inheritance
+    if (newIsInherit) {
+      data.is_tax_inherit = true;
+      data.tax_applicable = null as any;
+      data.tax_percentage = null as any;
+    } else {
+      data.is_tax_inherit = false;
+      if (parsed.tax_applicable !== undefined) data.tax_applicable = parsed.tax_applicable;
+      if (parsed.tax_percentage !== undefined) data.tax_percentage = parsed.tax_percentage;
+    }
+
+    // Parent connect/disconnect
+    if (catId !== undefined) {
+      data.categoryId = catId ?? null;
+      if (catId) {
+        data.category = { connect: { id: catId } };
+        data.subcategory = { disconnect: true } as any;
+      } else {
+        data.category = { disconnect: true } as any;
+      }
+    }
+    if (subId !== undefined) {
+      data.subcategoryId = subId ?? null;
+      if (subId) {
+        data.subcategory = { connect: { id: subId } };
+        data.category = { disconnect: true } as any;
+      } else {
+        data.subcategory = { disconnect: true } as any;
+      }
+    }
+
+    const updated = await prisma.item.update({ where: { id }, data });
+
+    res.json({
+      ...updated,
+      createdAt: formatTimestampToLocal(updated.createdAt),
+      updatedAt: formatTimestampToLocal(updated.updatedAt)
+    });
+
+  } catch (err: any) {
+    const message = err instanceof z.ZodError ? err.issues : err.message;
+    res.status(400).json({ error: message });
+  }
+};
