@@ -189,6 +189,7 @@ const swaggerDocument = {
           taxAmount: { type: 'number' },
           grandTotal: { type: 'number' },
           isAvailable: { type: 'boolean' },
+          is_active: { type: 'boolean' },
           note: { type: 'string', nullable: true }
         }
       },

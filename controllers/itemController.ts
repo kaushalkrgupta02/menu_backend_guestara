@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveItemPrice } from '../services/price_engine';
 import { formatTimestampToLocal } from '../utils/time';
 import {PricingTypeKey} from '../services/price_engine';
+import { isItemEffectivelyActive } from '../utils/visibility';
 
 
 const prisma = getPrisma();
@@ -145,6 +146,7 @@ export const listItems = async (req: Request, res: Response) => {
       const price = resolveItemPrice(it as any, {} as any);
       return { 
         ...it, 
+        is_active: isItemEffectivelyActive(it as any),
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
         updatedAt: formatTimestampToLocal(it.updatedAt)
@@ -171,13 +173,11 @@ export const getItem = async (req: Request, res: Response) => {
 
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    let is_active = !!item.is_active;
-    if (item.category && !item.category.is_active) is_active = false;
-    if (item.subcategory && !item.subcategory.is_active) is_active = false;
+    const effectiveActive = isItemEffectivelyActive(item as any);
 
     res.json({
       ...item,
-      is_active,
+      is_active: effectiveActive,
       createdAt: formatTimestampToLocal(item.createdAt),
       updatedAt: formatTimestampToLocal(item.updatedAt),
       category: item.category ? {
@@ -215,6 +215,9 @@ export const getItemPrice = async (req: Request, res: Response) => {
 
     const price = resolveItemPrice(item as any, { usageHours, currentTime });
 
+    const effectiveActive = isItemEffectivelyActive(item as any);
+    const finalIsAvailable = !!price.isAvailable && effectiveActive;
+
     res.json({
     //   pricingType: price.pricingType,
       basePrice: price.basePrice,
@@ -222,7 +225,8 @@ export const getItemPrice = async (req: Request, res: Response) => {
       taxPercentage: price.taxPercentage,
       taxAmount: price.taxAmount,
       grandTotal: price.grandTotal,
-      isAvailable: price.isAvailable
+      isAvailable: finalIsAvailable,
+      is_active: effectiveActive
     });
   } catch (err) {
     console.error(err);
