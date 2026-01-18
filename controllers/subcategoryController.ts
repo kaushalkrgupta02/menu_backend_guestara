@@ -78,10 +78,29 @@ export const listSubcategories = async (req: Request, res: Response) => {
     const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
     const categoryId = req.query.categoryId as string | undefined;
     const activeOnly = req.query.activeOnly !== 'false';
+    const taxApplicable = req.query.taxApplicable as string | undefined;
 
     const where: any = {};
     if (categoryId) where.categoryId = categoryId;
     if (activeOnly) where.is_active = true;
+
+    // Tax applicable filtering with inheritance support (Option B)
+    if (taxApplicable !== undefined) {
+      const isTaxApplicable = taxApplicable === 'true';
+      if (isTaxApplicable) {
+        // Subcategories that have tax: either inherit from active parent or have own tax_applicable=true
+        where.OR = [
+          { AND: [{ is_tax_inherit: true }, { category: { tax_applicable: true } }] },
+          { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
+        ];
+      } else {
+        // Subcategories without tax
+        where.AND = [
+          { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }] },
+          { tax_applicable: { not: true } }
+        ];
+      }
+    }
 
     const [total, subcategories] = await prisma.$transaction([
       prisma.subcategory.count({ where }),

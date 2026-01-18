@@ -61,6 +61,12 @@ export const createAddon = async (req: Request, res: Response) => {
 export const listAddons = async (req: Request, res: Response) => {
   try {
     const { id: itemId } = req.params;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
+    const sortBy = (req.query.sortBy as string) || 'createdAt';
+    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
     const activeOnly = req.query.activeOnly !== 'false';
 
     // Verify item exists
@@ -74,10 +80,22 @@ export const listAddons = async (req: Request, res: Response) => {
       where.is_active = true;
     }
 
-    const addons = await prisma.addon.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
+    // Price range filtering
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.price = {};
+      if (minPrice !== undefined) where.price.gte = minPrice;
+      if (maxPrice !== undefined) where.price.lte = maxPrice;
+    }
+
+    const [total, addons] = await prisma.$transaction([
+      prisma.addon.count({ where }),
+      prisma.addon.findMany({
+        where,
+        orderBy: { [sortBy === 'price' ? 'price' : sortBy]: sortDir },
+        skip: (page - 1) * limit,
+        take: limit
+      })
+    ]);
 
     const decimal = require('../utils/decimal');
 
@@ -89,9 +107,11 @@ export const listAddons = async (req: Request, res: Response) => {
     }));
 
     res.json({
+      page,
+      limit,
+      total,
       itemId,
       itemName: item.name,
-      total: formatted.length,
       addons: formatted
     });
 

@@ -8,6 +8,36 @@ import { isItemEffectivelyActive } from '../utils/visibility';
 
 const prisma = getPrisma();
 
+// Helper function to format item response
+const formatItemResponse = (item: any) => {
+  const decimal = require('../utils/decimal');
+  
+  // Map pricing type enum to display names
+  const pricingTypeMap: Record<string, string> = {
+    'A': 'STATIC',
+    'B': 'TIERED',
+    'C': 'COMPLIMENTARY',
+    'D': 'DISCOUNTED',
+    'E': 'DYNAMIC'
+  };
+
+  return {
+    id: item.id,
+    category_id: item.categoryId || item.subcategoryId || null,
+    name: item.name,
+    description: item.description || null,
+    image: item.image || null,
+    pricing_type: item.type_of_pricing ? pricingTypeMap[item.type_of_pricing] : null,
+    pricing_config: item.price_config || null,
+    is_bookable: item.is_bookable,
+    is_active: item.is_active,
+    tax_applicable: item.tax_applicable,
+    tax_percentage: item.tax_percentage ? decimal.decimalToNumber(item.tax_percentage, 0) : null,
+    created_at: item.createdAt ? formatTimestampToLocal(item.createdAt) : null,
+    updated_at: item.updatedAt ? formatTimestampToLocal(item.updatedAt) : null
+  };
+};
+
 export const createItem = async (req: Request, res: Response) => {
   try {
     const parsed = z.object({
@@ -209,18 +239,46 @@ export const listItems = async (req: Request, res: Response) => {
     const qSearch = (req.query.q as string) || undefined;
     const categoryId = req.query.categoryId as string | undefined;
     const activeOnly = req.query.activeOnly !== 'false';
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
+    const taxApplicable = req.query.taxApplicable as string | undefined;
 
     const where: any = {};
     if (qSearch) where.name = { contains: qSearch, mode: 'insensitive' };
     if (categoryId) where.categoryId = categoryId;
     if (activeOnly) where.is_active = true;
 
+    // Price range filtering
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.base_price = {};
+      if (minPrice !== undefined) where.base_price.gte = minPrice;
+      if (maxPrice !== undefined) where.base_price.lte = maxPrice;
+    }
+
+    // Tax applicable filtering with inheritance support (Option B)
+    if (taxApplicable !== undefined) {
+      const isTaxApplicable = taxApplicable === 'true';
+      if (isTaxApplicable) {
+        // Items that have tax: either inherit from active parent or have own tax_applicable=true
+        where.OR = [
+          { AND: [{ is_tax_inherit: true }, { OR: [{ category: { tax_applicable: true } }, { subcategory: { tax_applicable: true } }] }] },
+          { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
+        ];
+      } else {
+        // Items without tax
+        where.AND = [
+          { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }, { subcategory: { tax_applicable: false } }] },
+          { tax_applicable: { not: true } }
+        ];
+      }
+    }
+
     const [total, items] = await prisma.$transaction([
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
         include: { category: true, subcategory: true },
-        orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
+        orderBy: { [sortBy === 'price' ? 'base_price' : sortBy]: sortDir },
         skip: (page - 1) * limit,
         take: limit
       })
@@ -229,16 +287,7 @@ export const listItems = async (req: Request, res: Response) => {
     const decimal = require('../utils/decimal');
 
     const itemsWithPrice = items.map((it) => {
-      const price = resolveItemPrice(it as any, {} as any);
-      return { 
-        ...it, 
-        base_price: decimal.decimalToNumber(it.base_price, 0),
-        tax_percentage: decimal.decimalToNumber(it.tax_percentage, 0),
-        is_active: isItemEffectivelyActive(it as any),
-        resolvedPrice: price,
-        createdAt: formatTimestampToLocal(it.createdAt),
-        updatedAt: formatTimestampToLocal(it.updatedAt)
-      };
+      return formatItemResponse(it);
     });
 
     res.json({ page, limit, total, items: itemsWithPrice });
@@ -254,6 +303,9 @@ export const filterItems = async (req: Request, res: Response) => {
     const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
     const sortBy = (req.query.sortBy as string) || 'createdAt';
     const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
+    const taxApplicable = req.query.taxApplicable as string | undefined;
 
     const categoryActiveRaw = req.query.categoryActive as string | undefined;
     const subcategoryActiveRaw = req.query.subcategoryActive as string | undefined;
@@ -265,27 +317,42 @@ export const filterItems = async (req: Request, res: Response) => {
     if (categoryActive !== undefined) where.category = { is_active: categoryActive };
     if (subcategoryActive !== undefined) where.subcategory = { is_active: subcategoryActive };
 
+    // Price range filtering
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.base_price = {};
+      if (minPrice !== undefined) where.base_price.gte = minPrice;
+      if (maxPrice !== undefined) where.base_price.lte = maxPrice;
+    }
+
+    // Tax applicable filtering with inheritance support (Option B)
+    if (taxApplicable !== undefined) {
+      const isTaxApplicable = taxApplicable === 'true';
+      if (isTaxApplicable) {
+        where.OR = [
+          { AND: [{ is_tax_inherit: true }, { OR: [{ category: { tax_applicable: true } }, { subcategory: { tax_applicable: true } }] }] },
+          { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
+        ];
+      } else {
+        where.AND = [
+          { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }, { subcategory: { tax_applicable: false } }] },
+          { tax_applicable: { not: true } }
+        ];
+      }
+    }
+
     const [total, items] = await prisma.$transaction([
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
         include: { category: true, subcategory: true },
-        orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
+        orderBy: { [sortBy === 'price' ? 'base_price' : sortBy]: sortDir },
         skip: (page - 1) * limit,
         take: limit
       })
     ]);
 
     const itemsWithPrice = items.map((it) => {
-      const price = resolveItemPrice(it as any, {} as any);
-      return {
-        ...it,
-        pricingIsAvailable: !!price.isAvailable,
-        is_active: isItemEffectivelyActive(it as any),
-        resolvedPrice: price,
-        createdAt: formatTimestampToLocal(it.createdAt),
-        updatedAt: formatTimestampToLocal(it.updatedAt)
-      };
+      return formatItemResponse(it);
     });
 
     res.json({ page, limit, total, items: itemsWithPrice });
@@ -301,6 +368,9 @@ export const getItemsByParent = async (req: Request, res: Response) => {
     const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
     const sortBy = (req.query.sortBy as string) || 'createdAt';
     const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
+    const taxApplicable = req.query.taxApplicable as string | undefined;
 
     const categoryId = req.query.categoryId as string | undefined;
     const subcategoryId = req.query.subcategoryId as string | undefined;
@@ -322,27 +392,42 @@ export const getItemsByParent = async (req: Request, res: Response) => {
       if (parentActive !== undefined) where.subcategory = { is_active: parentActive };
     }
 
+    // Price range filtering
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      where.base_price = {};
+      if (minPrice !== undefined) where.base_price.gte = minPrice;
+      if (maxPrice !== undefined) where.base_price.lte = maxPrice;
+    }
+
+    // Tax applicable filtering with inheritance support (Option B)
+    if (taxApplicable !== undefined) {
+      const isTaxApplicable = taxApplicable === 'true';
+      if (isTaxApplicable) {
+        where.OR = [
+          { AND: [{ is_tax_inherit: true }, { OR: [{ category: { tax_applicable: true } }, { subcategory: { tax_applicable: true } }] }] },
+          { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
+        ];
+      } else {
+        where.AND = [
+          { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }, { subcategory: { tax_applicable: false } }] },
+          { tax_applicable: { not: true } }
+        ];
+      }
+    }
+
     const [total, items] = await prisma.$transaction([
       prisma.item.count({ where }),
       prisma.item.findMany({
         where,
         include: { category: true, subcategory: true },
-        orderBy: { [sortBy === 'price' ? 'createdAt' : sortBy]: sortDir },
+        orderBy: { [sortBy === 'price' ? 'base_price' : sortBy]: sortDir },
         skip: (page - 1) * limit,
         take: limit
       })
     ]);
 
     const itemsWithPrice = items.map((it) => {
-      const price = resolveItemPrice(it as any, {} as any);
-      return {
-        ...it,
-        pricingIsAvailable: !!price.isAvailable,
-        is_active: isItemEffectivelyActive(it as any),
-        resolvedPrice: price,
-        createdAt: formatTimestampToLocal(it.createdAt),
-        updatedAt: formatTimestampToLocal(it.updatedAt)
-      };
+      return formatItemResponse(it);
     });
 
     res.json({ page, limit, total, items: itemsWithPrice });
@@ -362,33 +447,9 @@ export const getItem = async (req: Request, res: Response) => {
         subcategory: true
       }
     });
-
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    const effectiveActive = isItemEffectivelyActive(item as any);
-
-    const decimal = require('../utils/decimal');
-
-    res.json({
-      ...item,
-      base_price: decimal.decimalToNumber(item.base_price, 0),
-      tax_percentage: decimal.decimalToNumber(item.tax_percentage, 0),
-      is_active: effectiveActive,
-      createdAt: formatTimestampToLocal(item.createdAt),
-      updatedAt: formatTimestampToLocal(item.updatedAt),
-      category: item.category ? {
-        ...item.category,
-        tax_percentage: decimal.decimalToNumber(item.category.tax_percentage, 0),
-        createdAt: formatTimestampToLocal(item.category.createdAt),
-        updatedAt: formatTimestampToLocal(item.category.updatedAt)
-      } : null,
-      subcategory: item.subcategory ? {
-        ...item.subcategory,
-        tax_percentage: decimal.decimalToNumber(item.subcategory.tax_percentage, 0),
-        createdAt: formatTimestampToLocal(item.subcategory.createdAt),
-        updatedAt: formatTimestampToLocal(item.subcategory.updatedAt)
-      } : null
-    });
+    res.json(formatItemResponse(item));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: (err as Error).message });
