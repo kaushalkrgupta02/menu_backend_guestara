@@ -94,12 +94,36 @@ export const createItem = async (req: Request, res: Response) => {
 
     // Validate and normalize price_config if provided and/or when a pricing type is set.
     // If type 'A' (STATIC), do not set any price_config and rely on base_price as the amount.
+    // If type 'C' (COMPLIMENTARY), base_price must not be provided and stored base_price will be set to 0.
     if (parsed.type_of_pricing) {
       const typeKey = parsed.type_of_pricing as any;
       if (typeKey === 'A') {
         // Static pricing: clear any provided config and use base_price as authoritative
         data.type_of_pricing = typeKey;
         data.price_config = null;
+      } else if (typeKey === 'C') {
+        // Complimentary: cannot accept a base_price
+        if (parsed.base_price !== undefined && parsed.base_price > 0) {
+          throw new Error('base_price cannot be provided for COMPLIMENTARY pricing (type C)');
+        }
+        data.type_of_pricing = typeKey;
+        data.price_config = require('../services/price_config').normalizePriceConfig(typeKey, {}, parsed.base_price);
+        data.base_price = 0;
+      } else if (typeKey === 'D') {
+        // Discounted: strict requirement - caller must provide base_price in request (no default allowed)
+        if (!Object.prototype.hasOwnProperty.call(req.body, 'base_price')) {
+          throw new Error('base_price is required for DISCOUNTED pricing (type D)');
+        }
+        if ((parsed.base_price ?? 0) <= 0) {
+          throw new Error('base_price must be > 0 for DISCOUNTED pricing (type D)');
+        }
+        try {
+          const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price);
+          data.type_of_pricing = typeKey;
+          data.price_config = norm;
+        } catch (e: any) {
+          throw new Error(`Invalid price_config: ${e.message}`);
+        }
       } else {
         try {
           const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price);
@@ -507,13 +531,42 @@ export const patchItem = async (req: Request, res: Response) => {
       }
     }
 
+    // Determine the effective pricing type after this patch
+    const targetType = parsed.type_of_pricing ?? existing.type_of_pricing;
+    // If final type is COMPLIMENTARY (C), reject attempts to set a non-zero base_price
+    if (targetType === 'C' && parsed.base_price !== undefined && parsed.base_price > 0) {
+      return res.status(400).json({ error: 'base_price cannot be provided for COMPLIMENTARY pricing (type C)' });
+    }
+
+    // If final type is DISCOUNTED (D), ensure a base_price exists (either being set now or already present)
+    if (targetType === 'D') {
+      const decimal = require('../utils/decimal');
+      const resultingBase = parsed.base_price !== undefined ? parsed.base_price : decimal.decimalToNumber(existing.base_price, undefined);
+      if (resultingBase === null || resultingBase === undefined || resultingBase <= 0) {
+        return res.status(400).json({ error: 'base_price must be provided and > 0 for DISCOUNTED pricing (type D)' });
+      }
+    }
+
     // Validate and normalize price_config if present in patch.
     // If changing to type 'A' (STATIC), clear any existing price_config and rely on base_price.
+    // If changing to type 'C' (COMPLIMENTARY), base_price will be set to 0 and price_config normalized.
     if (parsed.type_of_pricing) {
       const typeKey = parsed.type_of_pricing as any;
       if (typeKey === 'A') {
         data.type_of_pricing = typeKey;
         data.price_config = null;
+      } else if (typeKey === 'C') {
+        data.type_of_pricing = typeKey;
+        data.price_config = require('../services/price_config').normalizePriceConfig(typeKey, {}, parsed.base_price ?? undefined);
+        data.base_price = 0;
+      } else if (typeKey === 'D') {
+        data.type_of_pricing = typeKey;
+        try {
+          const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price ?? undefined);
+          data.price_config = norm;
+        } catch (e: any) {
+          return res.status(400).json({ error: `Invalid price_config: ${e.message}` });
+        }
       } else {
         try {
           const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price ?? undefined);

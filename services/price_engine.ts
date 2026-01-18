@@ -88,10 +88,15 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
       break;
 
     case 'TIERED':
-      // Find the first tier where usage is less than or equal to tier.upto
       if (!Array.isArray(config.tiers) || config.tiers.length === 0) { isAvailable = false; break; }
-      const tier = context.usageHours !== undefined ? config.tiers.find((t: any) => context.usageHours! <= t.upto) : null;
-      basePrice = tier ? tier.price : config.tiers[config.tiers.length - 1].price;
+      if (context.usageHours !== undefined) {
+        // tiers may have `upto: null` meaning unbounded final tier
+        const tier = config.tiers.find((t: any) => (t.upto === null) ? true : context.usageHours! <= t.upto);
+        basePrice = tier ? tier.price : config.tiers[config.tiers.length - 1].price;
+      } else {
+        // No usage provided: default to the last tier's price
+        basePrice = config.tiers[config.tiers.length - 1].price;
+      }
       break;
 
     case 'COMPLIMENTARY':
@@ -99,21 +104,26 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
       break;
 
     case 'DISCOUNTED':
-      basePrice = config.base ?? 0;
-      discount = config.is_perc 
-        ? (basePrice * (config.val / 100)) 
+      // Use config.base if provided; otherwise fall back to item.base_price (which may be a Decimal)
+      const configBase = typeof config.base !== 'undefined' ? config.base : (typeof item?.base_price === 'number' ? item.base_price : decimal.decimalToNumber(item?.base_price, 0));
+      basePrice = configBase ?? 0;
+      discount = config.is_perc
+        ? (basePrice * (config.val / 100))
         : config.val;
+      // Ensure discount bounds: final price should never be negative. For flat discounts, clamp to basePrice.
+      if (!config.is_perc && discount > basePrice) discount = basePrice;
+      if (discount < 0) discount = 0;
       break;
 
     case 'DYNAMIC':
-      // Format: "08:00"
+      // Format: "08:00". Use inclusive start, exclusive end to avoid overlap ambiguity.
       const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
       if (!Array.isArray(config.windows) || config.windows.length === 0) { isAvailable = false; break; }
-      const window = config.windows.find((w: any) => timeStr >= w.start && timeStr <= w.end);
+      const window = config.windows.find((w: any) => timeStr >= w.start && timeStr < w.end);
       if (window) {
         basePrice = window.price;
       } else {
-        isAvailable = false; // "After 11:00 -> unavailable" logic
+        isAvailable = false; // not available outside configured windows
       }
       break;
   }

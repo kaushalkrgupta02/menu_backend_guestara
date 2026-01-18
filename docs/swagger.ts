@@ -226,8 +226,8 @@ const swaggerDocument = {
         value: { type: 'TIERED', config: { tiers: [{ upto: 1, price: 300 }, { upto: 2, price: 500 }] } }
       },
       PriceConfigDiscounted: {
-        summary: 'Price config example - DISCOUNTED',
-        value: { type: 'DISCOUNTED', config: { base: 500, val: 10, is_perc: true } }
+        summary: 'Price config example - DISCOUNTED (provide only val & is_perc). Note: item must have a non-zero base_price when using DISCOUNTED pricing',
+        value: { type: 'DISCOUNTED', config: { val: 10, is_perc: true } }
       },
       PriceConfigDynamic: {
         summary: 'Price config example - DYNAMIC',
