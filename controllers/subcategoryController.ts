@@ -13,7 +13,7 @@ export const createSubcategory = async (req: Request, res: Response) => {
       image: z.string().optional(),
       description: z.string().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       is_active: z.boolean().optional()
     }).parse(req.body);
 
@@ -119,14 +119,18 @@ export const getSubcategory = async (req: Request, res: Response) => {
 
     if (!subcategory) return res.status(404).json({ error: 'Subcategory not found' });
 
+    const decimal = require('../utils/decimal');
+
     const formattedSub = {
       ...subcategory,
+      tax_percentage: decimal.decimalToNumber(subcategory.tax_percentage, 0),
       createdAt: formatTimestampToLocal(subcategory.createdAt),
       updatedAt: formatTimestampToLocal(subcategory.updatedAt)
     };
 
     const formattedCategory = subcategory.category ? {
       ...subcategory.category,
+      tax_percentage: decimal.decimalToNumber(subcategory.category.tax_percentage, 0),
       createdAt: formatTimestampToLocal(subcategory.category.createdAt),
       updatedAt: formatTimestampToLocal(subcategory.category.updatedAt)
     } : null;
@@ -137,6 +141,8 @@ export const getSubcategory = async (req: Request, res: Response) => {
       const effectiveActive = require('../utils/visibility').isItemEffectivelyActive(itemWithParents as any);
       return {
         ...it,
+        base_price: decimal.decimalToNumber(it.base_price, 0),
+        tax_percentage: decimal.decimalToNumber(it.tax_percentage, 0),
         is_active: effectiveActive,
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
@@ -160,7 +166,7 @@ export const patchSubcategory = async (req: Request, res: Response) => {
       image: z.string().optional(),
       description: z.string().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       is_tax_inherit: z.boolean().optional(),
       is_active: z.boolean().optional()
     }).parse(req.body);
@@ -182,21 +188,21 @@ export const patchSubcategory = async (req: Request, res: Response) => {
     }
 
     // Determine whether tax settings changed and validate
+    const decimal = require('../utils/decimal');
     const prevIsInherit = !!existing.is_tax_inherit;
     const newIsInherit = parsed.is_tax_inherit !== undefined ? parsed.is_tax_inherit : prevIsInherit;
 
     const prevTaxApp = existing.tax_applicable;
-    const prevTaxPct = existing.tax_percentage;
+    const prevTaxPct = decimal.decimalToNumber(existing.tax_percentage, 0);
 
     const newTaxApp = parsed.tax_applicable !== undefined ? parsed.tax_applicable : existing.tax_applicable;
-    const newTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : existing.tax_percentage;
+    const newTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : prevTaxPct;
 
     if (newIsInherit === false) {
       // explicit tax must be valid
       if (newTaxApp === false && newTaxPct && newTaxPct > 0) throw new Error('If tax_applicable is false, tax_percentage must be 0');
       if (newTaxApp === true && (!newTaxPct || newTaxPct <= 0)) throw new Error('If tax_applicable is true, tax_percentage must be greater than 0');
     }
-
     const updated = await prisma.$transaction(async (tx) => {
       const sub = await tx.subcategory.update({ where: { id }, data: parsed });
 

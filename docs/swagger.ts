@@ -31,7 +31,7 @@ const swaggerDocument = {
           image: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean' },
-          tax_percentage: { type: 'integer' },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places' },
           is_active: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
@@ -44,7 +44,7 @@ const swaggerDocument = {
           image: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean' },
-          tax_percentage: { type: 'integer' },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places' },
           is_active: { type: 'boolean' }
         },
         required: ['name']
@@ -56,7 +56,7 @@ const swaggerDocument = {
           image: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean' },
-          tax_percentage: { type: 'integer' },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places' },
           is_active: { type: 'boolean' }
         }
       },
@@ -70,7 +70,7 @@ const swaggerDocument = {
           description: { type: 'string', nullable: true },
           is_active: { type: 'boolean' },
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
@@ -84,7 +84,7 @@ const swaggerDocument = {
           image: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
           is_active: { type: 'boolean', nullable: true }
         },
@@ -98,7 +98,7 @@ const swaggerDocument = {
           image: { type: 'string', nullable: true },
           description: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
           is_active: { type: 'boolean', nullable: true }
         }
@@ -120,7 +120,7 @@ const swaggerDocument = {
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },  
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean' },
           avl_days: { type: 'array', items: { type: 'string' } },
           avl_times: { 
@@ -144,7 +144,7 @@ const swaggerDocument = {
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
           avl_days: { type: 'array', items: { type: 'string' } },
           avl_times: { 
@@ -167,7 +167,7 @@ const swaggerDocument = {
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
           tax_applicable: { type: 'boolean', nullable: true },
-          tax_percentage: { type: 'integer', nullable: true },
+          tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
           avl_days: { type: 'array', items: { type: 'string' } },
           avl_times: { 

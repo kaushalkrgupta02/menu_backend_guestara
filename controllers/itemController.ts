@@ -17,12 +17,12 @@ export const createItem = async (req: Request, res: Response) => {
       image: z.string().url().optional().or(z.literal("")),
       categoryId: z.string().optional(),
       subcategoryId: z.string().optional(),
-      base_price: z.number().nonnegative().default(0),
+      base_price: z.number().nonnegative().default(0).refine((n) => Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100), { message: 'base_price must have at most 2 decimal places' }),
       type_of_pricing: z.string().optional(),
       price_config: z.any().optional(),
       is_tax_inherit: z.boolean().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       avl_days: z.array(z.string()).optional(),
       avl_times: z.array(z.object({ 
         start: z.string(), 
@@ -142,10 +142,14 @@ export const listItems = async (req: Request, res: Response) => {
       })
     ]);
 
+    const decimal = require('../utils/decimal');
+
     const itemsWithPrice = items.map((it) => {
       const price = resolveItemPrice(it as any, {} as any);
       return { 
         ...it, 
+        base_price: decimal.decimalToNumber(it.base_price, 0),
+        tax_percentage: decimal.decimalToNumber(it.tax_percentage, 0),
         is_active: isItemEffectivelyActive(it as any),
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
@@ -279,18 +283,24 @@ export const getItem = async (req: Request, res: Response) => {
 
     const effectiveActive = isItemEffectivelyActive(item as any);
 
+    const decimal = require('../utils/decimal');
+
     res.json({
       ...item,
+      base_price: decimal.decimalToNumber(item.base_price, 0),
+      tax_percentage: decimal.decimalToNumber(item.tax_percentage, 0),
       is_active: effectiveActive,
       createdAt: formatTimestampToLocal(item.createdAt),
       updatedAt: formatTimestampToLocal(item.updatedAt),
       category: item.category ? {
         ...item.category,
+        tax_percentage: decimal.decimalToNumber(item.category.tax_percentage, 0),
         createdAt: formatTimestampToLocal(item.category.createdAt),
         updatedAt: formatTimestampToLocal(item.category.updatedAt)
       } : null,
       subcategory: item.subcategory ? {
         ...item.subcategory,
+        tax_percentage: decimal.decimalToNumber(item.subcategory.tax_percentage, 0),
         createdAt: formatTimestampToLocal(item.subcategory.createdAt),
         updatedAt: formatTimestampToLocal(item.subcategory.updatedAt)
       } : null
@@ -348,12 +358,12 @@ export const patchItem = async (req: Request, res: Response) => {
       image: z.string().url().optional().or(z.literal('')).optional(),
       categoryId: z.string().optional(),
       subcategoryId: z.string().optional(),
-      base_price: z.number().nonnegative().optional(),
+      base_price: z.number().nonnegative().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'base_price must have at most 2 decimal places' }),
       type_of_pricing: z.string().optional(),
       price_config: z.any().optional(),
       is_tax_inherit: z.boolean().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       avl_days: z.array(z.string()).optional(),
       avl_times: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
       is_active: z.boolean().optional()
@@ -400,8 +410,9 @@ export const patchItem = async (req: Request, res: Response) => {
     }
 
     if (newIsInherit === false) {
+      const decimal = require('../utils/decimal');
       const resultingTaxApp = parsed.tax_applicable !== undefined ? parsed.tax_applicable : existing.tax_applicable;
-      const resultingTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : existing.tax_percentage;
+      const resultingTaxPct = parsed.tax_percentage !== undefined ? parsed.tax_percentage : decimal.decimalToNumber(existing.tax_percentage, 0);
       if (resultingTaxApp === null || resultingTaxApp === undefined || resultingTaxPct === null) {
         return res.status(400).json({ error: 'Explicit tax payload required when disabling inheritance' });
       }

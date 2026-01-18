@@ -12,7 +12,7 @@ export const createCategory = async (req: Request, res: Response) => {
       image: z.string().optional(),
       description: z.string().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       is_active: z.boolean().optional()
     }).parse(req.body);
 
@@ -92,8 +92,11 @@ export const getCategory = async (req: Request, res: Response) => {
 
     if (!category) return res.status(404).json({ error: 'Category not found' });
 
+    const decimal = require('../utils/decimal');
+
     const formattedSubs = category.subcategories.map((s) => ({
       ...s,
+      tax_percentage: decimal.decimalToNumber(s.tax_percentage, 0),
       createdAt: formatTimestampToLocal(s.createdAt),
       updatedAt: formatTimestampToLocal(s.updatedAt)
     }));
@@ -104,6 +107,8 @@ export const getCategory = async (req: Request, res: Response) => {
       const effectiveActive = require('../utils/visibility').isItemEffectivelyActive(itemWithParents as any);
       return {
         ...it,
+        base_price: decimal.decimalToNumber(it.base_price, 0),
+        tax_percentage: decimal.decimalToNumber(it.tax_percentage, 0),
         is_active: effectiveActive,
         resolvedPrice: price,
         createdAt: formatTimestampToLocal(it.createdAt),
@@ -132,7 +137,7 @@ export const patchCategory = async (req: Request, res: Response) => {
       image: z.string().optional(),
       description: z.string().optional(),
       tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional(),
+      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       is_active: z.boolean().optional()
     }).parse(req.body);
 
@@ -140,8 +145,10 @@ export const patchCategory = async (req: Request, res: Response) => {
     if (!existing) return res.status(404).json({ error: 'Category not found' });
 
     // 1. Validation Logic
+    const decimal = require('../utils/decimal');
     const newTaxApplicable = parsed.tax_applicable !== undefined ? parsed.tax_applicable : existing.tax_applicable;
-    const newTaxPercentage = parsed.tax_percentage !== undefined ? parsed.tax_percentage : existing.tax_percentage;
+    const prevTaxPct = decimal.decimalToNumber(existing.tax_percentage, 0);
+    const newTaxPercentage = parsed.tax_percentage !== undefined ? parsed.tax_percentage : prevTaxPct;
 
     if (newTaxApplicable === false && newTaxPercentage > 0) {
       throw new Error('If tax_applicable is false, tax_percentage must be 0');
@@ -160,8 +167,9 @@ export const patchCategory = async (req: Request, res: Response) => {
 
 
       // B. Handle Tax Cascade
+      const prevTaxPct = decimal.decimalToNumber(existing.tax_percentage, 0);
       const taxChanged = (parsed.tax_applicable !== undefined && parsed.tax_applicable !== existing.tax_applicable) ||
-                         (parsed.tax_percentage !== undefined && parsed.tax_percentage !== existing.tax_percentage);
+                         (parsed.tax_percentage !== undefined && parsed.tax_percentage !== prevTaxPct);
 
       if (taxChanged) {
         // 1. Reset Subcategories that are set to inherit

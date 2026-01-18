@@ -33,28 +33,29 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
     // Resolve tax respecting is_tax_inherit flags on item and subcategory
     if (!item) return { taxPercentage: 0, taxApplicable: false };
 
+    const decimal = require('../utils/decimal');
     if (item.is_tax_inherit === false) {
-      return { taxPercentage: item.tax_percentage ?? 0, taxApplicable: !!item.tax_applicable };
+      return { taxPercentage: decimal.decimalToNumber(item.tax_percentage ?? 0), taxApplicable: !!item.tax_applicable };
     }
 
     if (item.subcategory) {
       if (item.subcategory.is_tax_inherit === false) {
-        return { taxPercentage: item.subcategory.tax_percentage ?? 0, taxApplicable: !!item.subcategory.tax_applicable };
+        return { taxPercentage: decimal.decimalToNumber(item.subcategory.tax_percentage ?? 0), taxApplicable: !!item.subcategory.tax_applicable };
       }
       if (item.subcategory.category) {
-        return { taxPercentage: item.subcategory.category.tax_percentage ?? 0, taxApplicable: !!item.subcategory.category.tax_applicable };
+        return { taxPercentage: decimal.decimalToNumber(item.subcategory.category.tax_percentage ?? 0), taxApplicable: !!item.subcategory.category.tax_applicable };
       }
     }
 
     if (item.category) {
-      return { taxPercentage: item.category.tax_percentage ?? 0, taxApplicable: !!item.category.tax_applicable };
+      return { taxPercentage: decimal.decimalToNumber(item.category.tax_percentage ?? 0), taxApplicable: !!item.category.tax_applicable };
     }
 
     return { taxPercentage: 0, taxApplicable: false };
   };
 
   if (!item || !item.price_config) {
-    const basePrice = typeof item?.base_price === 'number' ? item.base_price : 0;
+    const basePrice = typeof item?.base_price === 'number' ? item.base_price : require('../utils/decimal').decimalToNumber(item?.base_price, 0);
     const discount = 0;
     const isAvailable = true;
 
@@ -66,11 +67,11 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
     return {
       isAvailable,
       pricingType: 'STATIC',
-      basePrice,
-      discount,
-      taxPercentage,
-      taxAmount,
-      grandTotal: finalBase + taxAmount
+      basePrice: require('../utils/decimal').roundTo2(basePrice),
+      discount: require('../utils/decimal').roundTo2(discount),
+      taxPercentage: require('../utils/decimal').roundTo2(taxPercentage),
+      taxAmount: require('../utils/decimal').roundTo2(taxAmount),
+      grandTotal: require('../utils/decimal').roundTo2(finalBase + taxAmount)
     };
   }
 
@@ -122,10 +123,10 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
   return {
     isAvailable,
     pricingType: type,
-    basePrice,
-    discount,
-    taxPercentage: taxPercentage,
-    taxAmount,
-    grandTotal: finalBase + taxAmount
+    basePrice: require('../utils/decimal').roundTo2(basePrice),
+    discount: require('../utils/decimal').roundTo2(discount),
+    taxPercentage: require('../utils/decimal').roundTo2(taxPercentage),
+    taxAmount: require('../utils/decimal').roundTo2(taxAmount),
+    grandTotal: require('../utils/decimal').roundTo2(finalBase + taxAmount)
   };
 };
