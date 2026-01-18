@@ -63,6 +63,14 @@ export const createItem = async (req: Request, res: Response) => {
       tax_applicable: isInheriting ? null : (parsed.tax_applicable ?? (parsed.tax_percentage! > 0)),
       tax_percentage: isInheriting ? null : (parsed.tax_percentage ?? 0),
     };
+     
+
+    if (isInheriting){
+      if (!catId && !subId) {
+        return res.status(400).json({ error: "category or sub-category missing how tax inherit then?" });
+      }
+    }
+
 
     if (!isInheriting) {
       if (data.tax_applicable && data.tax_percentage <= 0) {
@@ -426,6 +434,15 @@ export const patchItem = async (req: Request, res: Response) => {
     const prevIsInherit = !!existing.is_tax_inherit;
     const newIsInherit = parsed.is_tax_inherit !== undefined ? parsed.is_tax_inherit : prevIsInherit;
     const hasTaxPayload = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
+
+    // If the item will inherit tax settings, ensure it has (or will have) a parent to inherit from
+    if (newIsInherit === true) {
+      const finalCategoryId = (catId && catId.length > 0) ? catId : existing.categoryId;
+      const finalSubcategoryId = (subId && subId.length > 0) ? subId : existing.subcategoryId;
+      if (!finalCategoryId && !finalSubcategoryId) {
+        return res.status(400).json({ error: 'category or sub-category missing how tax inherit then?' });
+      }
+    }
 
     if (newIsInherit === true && hasTaxPayload) {
       return res.status(400).json({ error: 'Invalid request: Cannot accept tax payloads when is_tax_inherit is true.' });
