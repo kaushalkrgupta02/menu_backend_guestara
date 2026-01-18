@@ -27,8 +27,7 @@ const swaggerDocument = {
       categoryId: { name: 'categoryId', in: 'query', schema: { type: 'string' } },
       activeOnly: { name: 'activeOnly', in: 'query', schema: { type: 'boolean', default: true } },
       taxApplicable: { name: 'taxApplicable', in: 'query', schema: { type: 'boolean' } },
-      usageHours: { name: 'usageHours', in: 'query', schema: { type: 'number' }, description: 'Used by TIERED pricing to select correct tier' },
-      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional ISO date-time override for DYNAMIC pricing (e.g., 2026-01-18T09:30:00Z). Use timezone-aware strings to specify offsets.' }
+      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional ISO date-time override for DYNAMIC pricing and TIERED bookable items. For bookable TIERED items, calculates usage hours from booking start to this time.' }
     },
     schemas: {
       Category: {
@@ -197,7 +196,6 @@ const swaggerDocument = {
         properties: {
           appliedPricingRule: { type: 'object', description: 'Applied pricing details. Structure varies by pricing type (e.g., { type: "TIERED", applied: { upto: 5, price: 100 } })' },
           basePrice: { type: 'number' },
-          type_of_pricing: { type: 'string' },
           discount: { type: 'number' },
           taxPercentage: { type: 'number' },
           taxAmount: { type: 'number' },
@@ -517,9 +515,10 @@ const swaggerDocument = {
     '/items/{id}/price': {
       get: {
         tags: ['Items'],
-        summary: 'Resolve item price',        description: 'Resolve price (supports usageHours and currentTime)',        parameters: [
+        summary: 'Resolve item price',
+        description: 'Calculate price for an item. For bookable TIERED items, automatically calculates usage hours from booking start to current time.',
+        parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } }, 
-          { $ref: '#/components/parameters/usageHours' }, 
           { $ref: '#/components/parameters/currentTime' }
         ],
         responses: {
