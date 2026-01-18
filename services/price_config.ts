@@ -116,17 +116,17 @@ export function normalizePriceConfig(typeKey: PricingTypeKey, payload: any, base
 // STATIC (type 'A') means only base_price matters 
 //
 // TIERED (type 'B')
-//   Payload shape: { tiers: [{ upto: number, price: number }, ...] }
-//   Example: { tiers: [{ upto: 1, price: 300 }, { upto: 2, price: 500 }] }
+//   Payload shape: { tiers: [{ "upto": number, "price": number }, ...] }
+//   Example: { tiers: [{ "upto": 1, "price": 300 }, { "upto": 2, "price": 500 }] }
 //
 // COMPLIMENTARY (type 'C')
 //   Payload shape: {} (no fields required)
 //   Example: {}
 //
 // DISCOUNTED (type 'D')
-//   Payload shape: { val: number, is_perc: boolean }
-//   Example: { val: 10, is_perc: true }
+//   Payload shape: { "val": number, "is_perc": boolean }
+//   Example: { "val": 10, "is_perc": true }
 //
 // DYNAMIC (type 'E')
-//   Payload shape: { windows: [{ start: 'HH:mm', end: 'HH:mm', price: number }, ...] }
-//   Example: { windows: [{ start: '08:00', end: '11:00', price: 199 }] }
+//   Payload shape: { "windows": [{ "start": 'HH:mm', "end": 'HH:mm', "price": number }, ...] }
+//   Example: { "windows": [{ "start": '08:00', "end": '11:00', "price": 199 }] }

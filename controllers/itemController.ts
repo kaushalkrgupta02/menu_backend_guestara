@@ -593,3 +593,72 @@ export const patchItem = async (req: Request, res: Response) => {
     res.status(400).json({ error: message });
   }
 };
+
+export const bulkUpdatePriceConfig = async (req: Request, res: Response) => {
+  try {
+    const parsed = z.object({
+      categoryId: z.string().optional(),
+      subcategoryId: z.string().optional(),
+      types: z.array(z.enum(['A','B','C','D','E'])).nonempty(),
+      configs: z.record(z.string(), z.any())
+    }).parse(req.body);
+
+    const { categoryId, subcategoryId, types, configs } = parsed;
+
+    if ((!categoryId && !subcategoryId) || (categoryId && subcategoryId)) {
+      return res.status(400).json({ error: 'Provide exactly one of categoryId or subcategoryId' });
+    }
+
+    const normalize = require('../services/price_config').normalizePriceConfig;
+
+    const results: Array<{ type: string; updated: number; skipped?: number }> = [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const t of types) {
+        const configPayload = configs[t];
+        if (typeof configPayload === 'undefined') {
+          throw new Error(`Missing price_config for type '${t}'`);
+        }
+
+        // Build where clause for this parent + type
+        const where: any = { type_of_pricing: t };
+        if (categoryId) where.categoryId = categoryId;
+        if (subcategoryId) where.subcategoryId = subcategoryId;
+
+        // Special handling & validation for types
+        if (t === 'A') {
+          // Static: clear price_config
+          const u = await tx.item.updateMany({ where, data: { price_config: null as any } });
+          results.push({ type: t, updated: u.count });
+          continue;
+        }
+
+        // For DISCOUNTED, ensure all target items have base_price > 0
+        if (t === 'D') {
+          const invalidCount = await tx.item.count({ where: { ...where, OR: [{ base_price: null }, { base_price: { lte: 0 } }] } });
+          if (invalidCount > 0) {
+            throw new Error(`There are ${invalidCount} item(s) with missing or non-positive base_price for DISCOUNTED pricing (type D). Ensure base_price > 0 before applying discounted configs.`);
+          }
+        }
+
+        // Normalize config (will throw if invalid)
+        const norm = normalize(t as any, configPayload, undefined);
+
+        // Update data depending on type
+        const data: any = { price_config: norm };
+        if (t === 'C') {
+          data.base_price = 0; // complimentary
+        }
+
+        const u = await tx.item.updateMany({ where, data });
+        results.push({ type: t, updated: u.count });
+      }
+    });
+
+    res.json({ success: true, results });
+
+  } catch (err: any) {
+    const message = err instanceof z.ZodError ? err.issues : err.message;
+    res.status(400).json({ error: message });
+  }
+};

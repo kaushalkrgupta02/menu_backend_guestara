@@ -392,6 +392,41 @@ const swaggerDocument = {
       }
     },
 
+    '/items/bulk/price-config': {
+      patch: {
+        summary: 'Bulk update price_config for items under a category or subcategory by types',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  categoryId: { type: 'string' },
+                  subcategoryId: { type: 'string' },
+                  types: { type: 'array', items: { type: 'string', enum: ['A','B','C','D','E'] } },
+                  configs: { type: 'object', description: 'Map of type key -> price_config payload' }
+                },
+                required: ['types','configs']
+              },
+              example: {
+                categoryId: 'cat_abc123',
+                types: ['B','D'],
+                configs: {
+                  'B': { tiers: [{ upto: 1, price: 300 }, { upto: null, price: 200 }] },
+                  'D': { val: 10, is_perc: true }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'OK', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, results: { type: 'array', items: { type: 'object' } } } } } } },
+          '400': { description: 'Invalid request', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }
+        }
+      }
+    },
+
     '/items/{id}': {
       patch: {
         summary: 'Patch an item',
