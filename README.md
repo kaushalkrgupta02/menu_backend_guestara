@@ -1,159 +1,282 @@
-# Guestara – NodeJs Assignment
+# Guestara – Menu & Services Management Backend
 
-##  Menu & Services Management Backend
+A Node.js/Express backend for managing restaurant menus, services, pricing, bookings, and add-ons with PostgreSQL.
 
+## Project Structure
 
+```
+├── config/
+│   ├── db_conn.ts          # Database connection pool
+│   └── prisma_client.ts    # Prisma client singleton
+├── controllers/            # HTTP request handlers
+│   ├── itemController.ts      # Item CRUD & pricing
+│   ├── bookingController.ts   # Booking management
+│   ├── addonController.ts     # Add-ons management
+│   ├── categoryController.ts  # Categories
+│   └── subcategoryController.ts
+├── services/               # Business logic
+│   ├── price_engine.ts     # Pricing calculation engine
+│   └── price_config.ts     # Pricing config validation
+├── routes/                 # API route definitions
+├── utils/                  # Helper utilities
+├── prisma/
+│   ├── schema.prisma       # Database schema (enums, models)
+│   └── prisma.config.ts    # Prisma config
+├── docs/
+│   └── swagger.ts          # OpenAPI/Swagger documentation
+└── app.ts                  # Express app entry point
+```
 
-### Project Structure
-./routes/: Defines the API endpoints.
+## Database Schema
 
-./controllers/: Handles HTTP requests, parses data, and returns status codes.
+### Key Tables
 
-./services/: The business logic like tax inheritance and pricing.
+1. **Category** - Product categories with tax inheritance
+2. **Subcategory** - Sub-categories under categories  
+3. **Item** - Menu items with pricing & availability
+4. **Booking** - Time slot bookings (for bookable items)
+5. **Addon** - Optional/mandatory add-ons for items
 
-./config/: Centralized configuration for the db client and environment variables.
+### Tax Inheritance Chain
 
-./models.ts: Source of TypeScript interfaces and shared types
+```
+Category (tax_percentage = 18%)
+  ↓
+Subcategory (inherits if is_tax_inherit=true)
+  ↓
+Item (inherits if is_tax_inherit=true)
+```
 
+If `is_tax_inherit=false`, the item has its own tax rate instead of inheriting.
 
+### Pricing System
 
-### Database Schema Discussion
-Postgres SQL choosen due to almost fix struture and service related to menu & billing inventory that needs data integrity and storage of JSONB data mimics the nosql feature.
+**Pricing Types (PricingKey enum):**
+- **A** - STATIC: Fixed base price
+- **B** - TIERED: Price varies by quantity tiers
+- **C** - COMPLIMENTARY: Free item
+- **D** - DISCOUNTED: Base price with discount applied
+- **E** - DYNAMIC: Time-based pricing windows
 
-key tables:
-1. categories
-2. subcategories
-3. items
-4. bookings
-5. Addon
+### Booking Status
 
+**BookingStatus enum:**
+- **confirmed** - Booking is confirmed
+- **cancelled** - Booking was cancelled
+- **completed** - Booking completed
 
->1. The Chain: Item → Subcategory → Category.
->2. Inheriting: If is_tax_inherit is true, tax fields are stored as null to ensure the "Single Source of Truth" comes from the parent.
->3. Overriding: Providing a manual tax rate at the item level "shadows" the parent’s value.
+## API Features
 
-The core philosophy is database Normalization. By clearing the fields (setting them to null), you are ensuring that the "truth" about the tax rate only exists in one place (the Category). Updating 1 parent and "nullifying" 100 children is much faster and less likely to lock your database than recalculating and writing new values to 100 children.
+1. **Items Management** - Full CRUD with pricing & availability
+2. **Pricing Engine** - Multi-strategy pricing (static, tiered, dynamic, etc.)
+3. **Bookings** - Time slot booking with double-booking prevention
+4. **Add-ons** - Optional/mandatory add-ons for items
+5. **Tax Inheritance** - Automatic tax calculation with inheritance
+6. **Availability** - Item availability based on days, time windows
 
-### Features
-1. auto tax inheritece
-2. soft delete and availablity check through the actual value present in the coloumn
-3. type-safe development and validation layer
-4. clear file structure of this repo
-
-## Docker Setup
+## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose installed
-- `.env` file configured (copy from `.env.example`)
 
-### Quick Start with Docker
+- Node.js 20+
+- Docker & Docker Compose
+- PostgreSQL 16 (via Docker)
 
-1. **Clone and setup environment:**
+### Setup
+
+1. **Clone & Install Dependencies**
    ```bash
    git clone <repository-url>
    cd menu_backend_guestara
+   npm install
    cp .env.example .env
    # Edit .env with your database credentials
    ```
 
-2. **Start the complete stack:**
+2. **Start PostgreSQL Container**
    ```bash
-   npm run docker:up
+   npm run db:up
+   # Wait for healthy status (check logs with: npm run db:logs)
    ```
 
-3. **Run database migrations:**
+3. **Initialize Database Schema**
    ```bash
-   docker-compose exec app npx prisma migrate dev --name init
+   # Run migrations
+   npm run prisma:migrate
+
+   # Generate Prisma client
+   npm run prisma:generate
    ```
 
-4. **Generate Prisma client:**
+4. **Start Development Server**
    ```bash
-   docker-compose exec app npx prisma generate
+   npm run dev
    ```
 
-### Docker Commands
+   - API: http://localhost:3000
+   - API Docs: http://localhost:3000/docs
+
+## Development Workflow
+
+### Making Schema Changes
+
+When you modify `prisma/schema.prisma`:
 
 ```bash
-# Build and start services
-npm run docker:build && npm run docker:up
+# 1. Create and apply migration
+npm run prisma:migrate
 
-# View logs
-npm run docker:logs
+# 2. Regenerate Prisma client
+npm run prisma:generate
 
-# Restart app
-npm run docker:restart
-
-# Stop services
-npm run docker:down
-
-# Clean up (removes containers and volumes)
-docker-compose down -v
+# 3. Dev server restarts automatically
+npm run dev
 ```
 
-### Services
-
-- **Database (PostgreSQL 16)**: `http://localhost:5433`
-- **API Server**: `http://localhost:3000`
-- **API Documentation**: `http://localhost:3000/docs`
-
-### Development vs Production
-
-- **Development**: Use `npm run dev` for hot-reload
-- **Production**: Use Docker for containerized deployment
-
-### Development with Hot-Reload
-
-For development with source code mounting and hot-reload:
+### Inspecting Database
 
 ```bash
-# Start with development override (mounts source code)
-docker-compose -f docker-compose.yml -f docker-compose.override.yml up
-
-# Or use the convenience script (if added to package.json)
-npm run docker:dev
+# Open Prisma Studio (visual database tool)
+npm run prisma:studio
+# Opens at http://localhost:5555
 ```
 
-This mounts your source code into the container and uses `npm run dev` for hot-reload during development.
+### Database Commands
 
+```bash
+# View PostgreSQL logs
+npm run db:logs
 
+# Stop database container
+npm run db:down
 
+# Full reset (deletes all data)
+npm run db:down
+npm run db:up
+npm run prisma:migrate
+```
 
+## NPM Scripts
 
+```json
+{
+  "dev": "ts-node-dev --respawn --transpile-only app.ts",
+  "build": "tsc -p .",
+  "start": "node dist/app.js",
+  "db:up": "docker-compose up -d",
+  "db:down": "docker-compose down",
+  "db:logs": "docker-compose logs -f db",
+  "prisma:studio": "prisma studio --config ./prisma/prisma.config.ts",
+  "prisma:migrate": "prisma migrate dev --name init_schema --config ./prisma/prisma.config.ts",
+  "prisma:generate": "prisma generate"
+}
+```
 
-### Notes & Tradeoffs
-while adding Items to any subcategory
-please make "categoryId": "string" ---> "categoryId": ""
+## Testing API
 
-I have added the helper fuction for is_active status of an item (not performing the core db opertion for updating the is_active value). Granual Control and JOIN operation only.
+### Health Check
+```bash
+curl http://localhost:3000/health
+```
 
+### View API Documentation
+```
+http://localhost:3000/docs
+```
 
-in Items isAvaiable means “Is the item available according to pricing/availability rules (e.g., avl_days, avl_times, dynamic pricing constraints)?”
+## Database Connection
 
+**Local Development:**
+```
+DATABASE_URL=postgresql://admin:admin123@localhost:5433/guestara_backend
+```
 
+**Inside Docker:**
+```
+DATABASE_URL=postgresql://admin:admin123@db:5432/guestara_backend
+```
 
+Environment variables are loaded from `.env` file.
 
-### Steps to run locally
+## Key Architecture Decisions
 
-1. Clone & Dependencies
-    1. git clone <url>
-    2. go to folder menu_backend_guestara
-    3. npm install 
+1. **Tax Inheritance** - Single source of truth: taxes defined at parent level, inherited by children
+2. **Pricing Strategy** - Multiple pricing types via `PricingKey` enum with dedicated engines
+3. **Soft Delete** - Items marked `is_active=false` instead of hard deletion
+4. **Availability Checks** - Items checked against `avl_days`, `avl_times` for availability
+5. **Booking Prevention** - Double-booking prevented via unique constraint + conflict detection
 
-2. Up the docker service for database (install docker first)
-    1. $ docker-compose up -d
+## Common Tasks
 
-3. make .env file and copy .env_example to it
+### Reset Database (Development Only)
+```bash
+npm run db:down
+rm -rf prisma/migrations
+npm run db:up
+npm run prisma:migrate
+```
 
-4. Prisma migration
-    1. npx prisma migrate dev --name init
-    2. npx prisma generate
+### View Migration Status
+```bash
+npx prisma migrate status --config ./prisma/prisma.config.ts
+```
 
-5. start server using npm run dev
+### Fix Prisma Client Issues
+```bash
+npm run prisma:generate
+```
 
+## Important Notes
 
+- When adding items to **subcategory**, set `categoryId` to empty string: `"categoryId": ""`
+- The `is_active` field uses a visibility helper function (granular control, no direct DB updates)
+- "isAvailable" = item is available per pricing/availability rules (days, times, pricing constraints)
 
+## Troubleshooting
 
--- to check the schema goto prima studio run 
- npx prisma studio --config ./prisma/prisma.config.ts
--- to do migration
- npx prisma migrate dev --name init_schema --config ./prisma/prisma.config.ts
+### "Database connection failed"
+```bash
+# Check if PostgreSQL is running
+npm run db:logs
+
+# Verify .env DATABASE_URL matches
+# Should be: postgresql://admin:admin123@localhost:5433/guestara_backend
+```
+
+### "Prisma client not found"
+```bash
+npm run prisma:generate
+```
+
+### "Migration conflicts"
+```bash
+npx prisma migrate status --config ./prisma/prisma.config.ts
+# If conflicts exist, reset in development:
+npm run db:down
+rm -rf prisma/migrations
+npm run db:up
+npm run prisma:migrate
+```
+
+## Production Deployment
+
+1. Build the application:
+   ```bash
+   npm run build
+   ```
+
+2. Use Docker for containerized deployment:
+   ```bash
+   docker build -t guestara-app .
+   docker run -p 3000:3000 --env-file .env guestara-app
+   ```
+
+## Additional Resources
+
+- [Swagger/OpenAPI Docs](http://localhost:3000/docs) - Interactive API documentation
+- [Prisma Studio](http://localhost:5555) - Visual database manager
+- [PostgreSQL Connection Info](http://localhost:5433) - Database port
+
+## License
+
+Proprietary - Guestara

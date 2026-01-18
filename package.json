@@ -6,13 +6,12 @@
     "dev": "ts-node-dev --respawn --transpile-only app.ts",
     "build": "tsc -p .",
     "start": "node dist/app.js",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up -d",
-    "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f app",
-    "docker:dev": "docker-compose -f docker-compose.yml -f docker-compose.override.yml up",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init"
+    "db:up": "docker-compose up -d",
+    "db:down": "docker-compose down",
+    "db:logs": "docker-compose logs -f db",
+    "prisma:studio": "prisma studio --config ./prisma/prisma.config.ts",
+    "prisma:migrate": "prisma migrate dev --name init_schema --config ./prisma/prisma.config.ts",
+    "prisma:generate": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",

@@ -19,29 +19,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    networks:
-      - guestara-network
-
-  app:
-    build: .
-    container_name: guestara-app
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}"
-      NODE_ENV: production
-    env_file:
-      - .env
-    networks:
-      - guestara-network
 
 volumes:
   pgdata:
-
-networks:
-  guestara-network:
-    driver: bridge 
