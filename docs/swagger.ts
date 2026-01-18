@@ -454,7 +454,7 @@ const swaggerDocument = {
       post: {
         tags: ['Items'],
         summary: 'Create',
-        description: 'Create an item. Optional fields may be omitted.',
+        description: 'Create an item. Optional fields may be omitted. categoryId filled then "subcategoryId": "" and vice versa.',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemCreate' } } } },
         responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } } } }
       },
