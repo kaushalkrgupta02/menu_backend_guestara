@@ -299,7 +299,7 @@ const swaggerDocument = {
         }
       },
       PriceConfigStatic: {
-        summary: 'Price config example - STATIC (amount ignored in favor of base_price)',
+        summary: 'Price config example - STATIC (base_price only)',
         value: { type: 'STATIC', config: { amount: 200 } }
       },
       PriceConfigTiered: {
@@ -307,7 +307,7 @@ const swaggerDocument = {
         value: { type: 'TIERED', config: { tiers: [{ upto: 1, price: 300 }, { upto: 2, price: 500 }] } }
       },
       PriceConfigDiscounted: {
-        summary: 'Price config example - DISCOUNTED (provide only val & is_perc). Note: item must have a non-zero base_price when using DISCOUNTED pricing',
+        summary: 'Price config example - DISCOUNTED (provide only val & is_perc (percentage)). Note: item must have a non-zero base_price when using DISCOUNTED pricing',
         value: { type: 'DISCOUNTED', config: { val: 10, is_perc: true } }
       },
       PriceConfigDynamic: {
@@ -577,8 +577,8 @@ const swaggerDocument = {
             'application/json': {
               schema: { $ref: '#/components/schemas/BookingCreate' },
               example: {
-                startTime: '2026-01-16T09:00:00.000Z',
-                endTime: '2026-01-16T10:00:00.000Z'
+                startTime: '2026-MM-DDT09:mm:ss.000Z',
+                endTime: '2026-MM-DDT10:mm:ss.000Z'
               }
             }
           }
