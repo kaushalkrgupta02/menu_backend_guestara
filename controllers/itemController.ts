@@ -56,7 +56,7 @@ export const createItem = async (req: Request, res: Response) => {
       image: parsed.image,
       base_price: parsed.base_price,
       type_of_pricing: parsed.type_of_pricing,
-      price_config: parsed.price_config,
+      // price_config will be validated and normalized below if provided
       is_active: parsed.is_active,
       is_tax_inherit: isInheriting,
       // If inheriting, keep it clean with NULL. If not, map the values.
@@ -82,6 +82,28 @@ export const createItem = async (req: Request, res: Response) => {
       const exists = await prisma.subcategory.findUnique({ where: { id: subId } });
       if (!exists) throw new Error('Subcategory not found');
       data.subcategory = { connect: { id: subId } };
+    }
+
+    // Validate and normalize price_config if provided and/or when a pricing type is set.
+    // If type 'A' (STATIC), do not set any price_config and rely on base_price as the amount.
+    if (parsed.type_of_pricing) {
+      const typeKey = parsed.type_of_pricing as any;
+      if (typeKey === 'A') {
+        // Static pricing: clear any provided config and use base_price as authoritative
+        data.type_of_pricing = typeKey;
+        data.price_config = null;
+      } else {
+        try {
+          const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price);
+          data.type_of_pricing = typeKey;
+          data.price_config = norm;
+        } catch (e: any) {
+          throw new Error(`Invalid price_config: ${e.message}`);
+        }
+      }
+    } else if (parsed.price_config) {
+      // price_config with no type is ambiguous
+      throw new Error('price_config provided but type_of_pricing is missing');
     }
 
     // Name Uniqueness Check
@@ -466,6 +488,26 @@ export const patchItem = async (req: Request, res: Response) => {
       } else {
         data.subcategory = { disconnect: true } as any;
       }
+    }
+
+    // Validate and normalize price_config if present in patch.
+    // If changing to type 'A' (STATIC), clear any existing price_config and rely on base_price.
+    if (parsed.type_of_pricing) {
+      const typeKey = parsed.type_of_pricing as any;
+      if (typeKey === 'A') {
+        data.type_of_pricing = typeKey;
+        data.price_config = null;
+      } else {
+        try {
+          const norm = require('../services/price_config').normalizePriceConfig(typeKey, parsed.price_config, parsed.base_price ?? undefined);
+          data.type_of_pricing = typeKey;
+          data.price_config = norm;
+        } catch (e: any) {
+          return res.status(400).json({ error: `Invalid price_config: ${e.message}` });
+        }
+      }
+    } else if (parsed.price_config) {
+      return res.status(400).json({ error: 'price_config provided but type_of_pricing is missing' });
     }
 
     const updated = await prisma.item.update({ where: { id }, data });

@@ -119,6 +119,7 @@ const swaggerDocument = {
           subcategory: { $ref: '#/components/schemas/Subcategory', nullable: true },
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },  
+          price_config: { type: 'object', nullable: true, description: 'Optional: pricing configuration. See examples in components/examples.' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean' },
@@ -143,6 +144,7 @@ const swaggerDocument = {
           subcategoryId: { type: 'string', nullable: true },
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
+          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples.' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
@@ -166,6 +168,7 @@ const swaggerDocument = {
           subcategoryId: { type: 'string', nullable: true },
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
+          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples.' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
@@ -213,6 +216,22 @@ const swaggerDocument = {
           avl_days: null,
           avl_times: null
         }
+      },
+      PriceConfigStatic: {
+        summary: 'Price config example - STATIC (amount ignored in favor of base_price)',
+        value: { type: 'STATIC', config: { amount: 200 } }
+      },
+      PriceConfigTiered: {
+        summary: 'Price config example - TIERED',
+        value: { type: 'TIERED', config: { tiers: [{ upto: 1, price: 300 }, { upto: 2, price: 500 }] } }
+      },
+      PriceConfigDiscounted: {
+        summary: 'Price config example - DISCOUNTED',
+        value: { type: 'DISCOUNTED', config: { base: 500, val: 10, is_perc: true } }
+      },
+      PriceConfigDynamic: {
+        summary: 'Price config example - DYNAMIC',
+        value: { type: 'DYNAMIC', config: { windows: [{ start: '08:00', end: '11:00', price: 199 }] } }
       },
       CategoryExample: {
         summary: 'Category response example',

@@ -28,6 +28,7 @@ export const PRICING_TYPE_BY_KEY: Record<PricingTypeKey, string> = PRICING_TYPES
 export const resolveItemPrice = (item: any, context: { usageHours?: number, currentTime?: string }) => {
   // If price_config is not defined, fall back to using base_price (simple STATIC behavior)
   const now = context.currentTime ? new Date(context.currentTime) : new Date();
+  const decimal = require('../utils/decimal');
 
   const resolveTax = (item: any) => {
     // Resolve tax respecting is_tax_inherit flags on item and subcategory
@@ -82,12 +83,14 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
 
   switch (type) {
     case 'STATIC':
-      basePrice = config.amount;
+      // For STATIC, prefer item.base_price; otherwise optionally config.amount
+      basePrice = typeof item?.base_price === 'number' ? item.base_price : (config.amount !== undefined ? decimal.decimalToNumber(config.amount, 0) : 0);
       break;
 
     case 'TIERED':
-      // Find the first tier where usage is less than or equal to tier limit
-      const tier = config.tiers.find((t: any) => context.usageHours! <= t.upto_hours);
+      // Find the first tier where usage is less than or equal to tier.upto
+      if (!Array.isArray(config.tiers) || config.tiers.length === 0) { isAvailable = false; break; }
+      const tier = context.usageHours !== undefined ? config.tiers.find((t: any) => context.usageHours! <= t.upto) : null;
       basePrice = tier ? tier.price : config.tiers[config.tiers.length - 1].price;
       break;
 
@@ -96,15 +99,16 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
       break;
 
     case 'DISCOUNTED':
-      basePrice = config.base_price;
-      discount = config.is_percentage 
-        ? (basePrice * (config.discount_value / 100)) 
-        : config.discount_value;
+      basePrice = config.base ?? 0;
+      discount = config.is_perc 
+        ? (basePrice * (config.val / 100)) 
+        : config.val;
       break;
 
     case 'DYNAMIC':
       // Format: "08:00"
       const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
+      if (!Array.isArray(config.windows) || config.windows.length === 0) { isAvailable = false; break; }
       const window = config.windows.find((w: any) => timeStr >= w.start && timeStr <= w.end);
       if (window) {
         basePrice = window.price;
