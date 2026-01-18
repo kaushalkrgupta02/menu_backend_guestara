@@ -399,7 +399,6 @@ export const getItem = async (req: Request, res: Response) => {
 export const getItemPrice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const usageHours = req.query.usageHours ? parseFloat(req.query.usageHours as string) : undefined;
     const currentTime = req.query.currentTime as string | undefined;
 
     const item = await prisma.item.findUnique({
@@ -411,6 +410,29 @@ export const getItemPrice = async (req: Request, res: Response) => {
     });
 
     if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    let usageHours: number | undefined = undefined;
+
+    // For bookable items with tiered pricing (type B), calculate usage from booking start to now
+    if (item.is_bookable && item.type_of_pricing === 'B') {
+      const now = currentTime ? new Date(currentTime) : new Date();
+      
+      // Find booking that started at or before current time
+      const activeBooking = await prisma.booking.findFirst({
+        where: {
+          itemId: id,
+          status: { in: ['confirmed', 'completed'] },
+          start_time: { lte: now }
+        },
+        orderBy: { start_time: 'desc' }
+      });
+
+      if (activeBooking) {
+        // Calculate hours from booking start to current time (ignore end_time)
+        const durationMs = now.getTime() - activeBooking.start_time.getTime();
+        usageHours = durationMs / (1000 * 60 * 60); // Convert milliseconds to hours
+      }
+    }
 
     const price = resolveItemPrice(item as any, { usageHours, currentTime });
 
