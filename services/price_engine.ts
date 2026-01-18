@@ -67,7 +67,7 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
 
     return {
       isAvailable,
-      pricingType: 'STATIC',
+      appliedPricingRule: { type: 'STATIC', source: 'base', amount: require('../utils/decimal').roundTo2(basePrice) },
       basePrice: require('../utils/decimal').roundTo2(basePrice),
       discount: require('../utils/decimal').roundTo2(discount),
       taxPercentage: require('../utils/decimal').roundTo2(taxPercentage),
@@ -80,27 +80,33 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
   let basePrice = 0;
   let discount = 0;
   let isAvailable = true;
+  let appliedPricingRule: string | null = null;
 
   switch (type) {
     case 'STATIC':
       // For STATIC, prefer item.base_price; otherwise optionally config.amount
       basePrice = typeof item?.base_price === 'number' ? item.base_price : (config.amount !== undefined ? decimal.decimalToNumber(config.amount, 0) : 0);
+      appliedPricingRule = { type: 'STATIC', source: 'base', amount: decimal.roundTo2 ? decimal.roundTo2(basePrice) : require('../utils/decimal').roundTo2(basePrice) };
       break;
 
     case 'TIERED':
-      if (!Array.isArray(config.tiers) || config.tiers.length === 0) { isAvailable = false; break; }
+      if (!Array.isArray(config.tiers) || config.tiers.length === 0) { isAvailable = false; appliedPricingRule = { type: 'TIERED', error: 'invalid config' }; break; }
       if (context.usageHours !== undefined) {
         // tiers may have `upto: null` meaning unbounded final tier
         const tier = config.tiers.find((t: any) => (t.upto === null) ? true : context.usageHours! <= t.upto);
         basePrice = tier ? tier.price : config.tiers[config.tiers.length - 1].price;
+        appliedPricingRule = tier ? { type: 'TIERED', applied: { upto: tier.upto, price: tier.price } } : { type: 'TIERED', applied: { defaultLast: true, price: config.tiers[config.tiers.length - 1].price } };
       } else {
         // No usage provided: default to the last tier's price
-        basePrice = config.tiers[config.tiers.length - 1].price;
+        const last = config.tiers[config.tiers.length - 1];
+        basePrice = last.price;
+        appliedPricingRule = { type: 'TIERED', applied: { defaultLast: true, upto: last.upto, price: last.price } };
       }
       break;
 
     case 'COMPLIMENTARY':
       basePrice = 0;
+      appliedPricingRule = { type: 'COMPLIMENTARY' };
       break;
 
     case 'DISCOUNTED':
@@ -113,17 +119,20 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
       // Ensure discount bounds: final price should never be negative. For flat discounts, clamp to basePrice.
       if (!config.is_perc && discount > basePrice) discount = basePrice;
       if (discount < 0) discount = 0;
+      appliedPricingRule = config.is_perc ? { type: 'DISCOUNTED', val: config.val, is_perc: true } : { type: 'DISCOUNTED', val: config.val, is_perc: false };
       break;
 
     case 'DYNAMIC':
       // Format: "08:00". Use inclusive start, exclusive end to avoid overlap ambiguity.
       const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-      if (!Array.isArray(config.windows) || config.windows.length === 0) { isAvailable = false; break; }
+      if (!Array.isArray(config.windows) || config.windows.length === 0) { isAvailable = false; appliedPricingRule = { type: 'DYNAMIC', error: 'invalid config' }; break; }
       const window = config.windows.find((w: any) => timeStr >= w.start && timeStr < w.end);
       if (window) {
         basePrice = window.price;
+        appliedPricingRule = { type: 'DYNAMIC', applied: { start: window.start, end: window.end, price: window.price } };
       } else {
         isAvailable = false; // not available outside configured windows
+        appliedPricingRule = { type: 'DYNAMIC', matched: null };
       }
       break;
   }
@@ -136,7 +145,7 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
 
   return {
     isAvailable,
-    pricingType: type,
+    appliedPricingRule,
     basePrice: require('../utils/decimal').roundTo2(basePrice),
     discount: require('../utils/decimal').roundTo2(discount),
     taxPercentage: require('../utils/decimal').roundTo2(taxPercentage),

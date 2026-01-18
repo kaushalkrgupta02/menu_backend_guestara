@@ -387,7 +387,7 @@ export const getItemPrice = async (req: Request, res: Response) => {
     const finalIsAvailable = !!price.isAvailable && effectiveActive;
 
     res.json({
-    //   pricingType: price.pricingType,
+      appliedPricingRule: price.appliedPricingRule,
       basePrice: price.basePrice,
       discount: price.discount,
       taxPercentage: price.taxPercentage,

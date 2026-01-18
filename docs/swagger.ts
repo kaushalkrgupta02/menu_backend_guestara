@@ -184,7 +184,7 @@ const swaggerDocument = {
       ItemPriceResponse: {
         type: 'object',
         properties: {
-          pricingType: { type: 'string' },
+          appliedPricingRule: { type: 'object', description: 'Applied pricing details. Structure varies by pricing type (e.g., { type: "TIERED", applied: { upto: 5, price: 100 } })' },
           basePrice: { type: 'number' },
           type_of_pricing: { type: 'string' },
           discount: { type: 'number' },
