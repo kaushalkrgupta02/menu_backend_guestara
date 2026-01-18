@@ -20,7 +20,7 @@ const swaggerDocument = {
       activeOnly: { name: 'activeOnly', in: 'query', schema: { type: 'boolean', default: true } },
       taxApplicable: { name: 'taxApplicable', in: 'query', schema: { type: 'boolean' } },
       usageHours: { name: 'usageHours', in: 'query', schema: { type: 'number' }, description: 'Used by TIERED pricing to select correct tier' },
-      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional override time for DYNAMIC pricing' }
+      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional ISO date-time override for DYNAMIC pricing (e.g., 2026-01-18T09:30:00Z). Use timezone-aware strings to specify offsets.' }
     },
     schemas: {
       Category: {
@@ -144,7 +144,7 @@ const swaggerDocument = {
           subcategoryId: { type: 'string', nullable: true },
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
-          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples.' },
+          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples. Note: if type_of_pricing is "E" (DYNAMIC), you must provide non-empty avl_times and windows must intersect avl_times.' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
@@ -168,7 +168,7 @@ const swaggerDocument = {
           subcategoryId: { type: 'string', nullable: true },
           base_price: { type: 'number', nullable: true },
           type_of_pricing: { type: 'string', nullable: true },
-          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples.' },
+          price_config: { type: 'object', nullable: true, description: 'Pricing configuration object. See examples. Note: if type_of_pricing is "E" (DYNAMIC), you must provide non-empty avl_times and windows must intersect avl_times.' },
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },

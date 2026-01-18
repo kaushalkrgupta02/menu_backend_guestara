@@ -155,6 +155,35 @@ export const createItem = async (req: Request, res: Response) => {
         timeRegex.test(t.start) && timeRegex.test(t.end) && t.start < t.end
       );
     }
+    // console.log(data.avl_times);
+    // console.log(data.avl_days);
+    // console.log(parsed.avl_times);
+    // console.log(parsed.avl_days);
+
+
+
+    // If pricing is DYNAMIC (type 'E'), require avl_times to be provided and ensure windows intersect availability times
+    if (data.type_of_pricing === 'E') {
+      if (!data.avl_times || data.avl_times.length === 0) {
+        throw new Error("DYNAMIC pricing (type E) requires avl_times to be provided and non-empty");
+      }
+
+      if (!data.price_config || !data.price_config.config || !Array.isArray(data.price_config.config.windows) || data.price_config.config.windows.length === 0) {
+        throw new Error('DYNAMIC pricing requires a non-empty "windows" array in price_config');
+      }
+
+      const windows = data.price_config.config.windows as Array<{start:string,end:string,price:number}>;
+      const toMinutes = (s: string) => { const [hh, mm] = s.split(':').map(n => parseInt(n,10)); return hh*60 + mm; };
+      // Ensure every dynamic window is fully contained within at least one availability window
+      const allContained = windows.every((w) => {
+        const wStart = toMinutes(w.start); const wEnd = toMinutes(w.end);
+        return data.avl_times.some((a: any) => {
+          const aStart = toMinutes(a.start); const aEnd = toMinutes(a.end);
+          return wStart >= aStart && wEnd <= aEnd;
+        });
+      });
+      if (!allContained) throw new Error("Each DYNAMIC pricing window must be contained within one of the item's avl_times");
+    }
 
     const item = await prisma.item.create({ data });
 
@@ -545,6 +574,32 @@ export const patchItem = async (req: Request, res: Response) => {
       if (resultingBase === null || resultingBase === undefined || resultingBase <= 0) {
         return res.status(400).json({ error: 'base_price must be provided and > 0 for DISCOUNTED pricing (type D)' });
       }
+    }
+
+    // If the resulting pricing type is DYNAMIC (type 'E'), require avl_times to be present (either in patch or existing) and ensure windows intersect availability times
+    if (targetType === 'E') {
+      const effectiveAvl = parsed.avl_times ? parsed.avl_times : existing.avl_times;
+      if (!effectiveAvl || effectiveAvl.length === 0) {
+        return res.status(400).json({ error: 'DYNAMIC pricing (type E) requires avl_times to be present (either in request or already set on the item).' });
+      }
+
+      const configToCheck = parsed.type_of_pricing === 'E' ? parsed.price_config : (parsed.price_config ?? existing.price_config);
+      if (!configToCheck || !configToCheck.config || !Array.isArray(configToCheck.config.windows) || configToCheck.config.windows.length === 0) {
+        return res.status(400).json({ error: 'DYNAMIC pricing requires a non-empty "windows" array in price_config' });
+      }
+
+      const toMinutes = (s: string) => { const [hh, mm] = s.split(':').map(n => parseInt(n,10)); return hh*60 + mm; };
+      const windows = configToCheck.config.windows as Array<any>;
+      // For patches, ensure every dynamic window is fully contained within one of the effective avl_times
+      const allContained = windows.every((w: any) => {
+        const wStart = toMinutes(w.start); const wEnd = toMinutes(w.end);
+        return effectiveAvl.some((a: any) => {
+          const aStart = toMinutes(a.start); const aEnd = toMinutes(a.end);
+          return wStart >= aStart && wEnd <= aEnd;
+        });
+      });
+
+      if (!allContained) return res.status(400).json({ error: "Each DYNAMIC pricing window must be contained within one of the item's avl_times for this patch." });
     }
 
     // Validate and normalize price_config if present in patch.

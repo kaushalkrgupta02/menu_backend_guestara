@@ -128,5 +128,5 @@ export function normalizePriceConfig(typeKey: PricingTypeKey, payload: any, base
 //   Example: { "val": 10, "is_perc": true }
 //
 // DYNAMIC (type 'E')
-//   Payload shape: { "windows": [{ "start": 'HH:mm', "end": 'HH:mm', "price": number }, ...] }
-//   Example: { "windows": [{ "start": '08:00', "end": '11:00', "price": 199 }] }
+//   Payload shape: { "windows": [{ "start": "HH:mm", "end": "HH:mm", "price": number }, ...] }
+//   Example: { "windows": [{ "start": "08:00", "end": "11:00", "price": 199 }] }
