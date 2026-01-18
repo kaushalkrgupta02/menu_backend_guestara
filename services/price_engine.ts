@@ -123,7 +123,6 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
       break;
 
     case 'DYNAMIC':
-      // Format: "08:00". Use inclusive start, exclusive end to avoid overlap ambiguity.
       const timeStr = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
       if (!Array.isArray(config.windows) || config.windows.length === 0) { isAvailable = false; appliedPricingRule = { type: 'DYNAMIC', error: 'invalid config' }; break; }
       const window = config.windows.find((w: any) => timeStr >= w.start && timeStr < w.end);

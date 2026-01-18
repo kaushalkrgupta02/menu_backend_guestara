@@ -18,7 +18,6 @@ router.get('/:id/available-slots', getAvailableSlots);
 router.post('/:id/addons', createAddon);
 router.get('/:id/addons', listAddons);
 router.delete('/:id', async (req, res) => {
-  // Soft delete
   const pool = (await import('../config/db_conn')).default;
   await pool.query(`UPDATE "Item" SET is_active=false WHERE id=$1`, [req.params.id]);
   res.json({ success: true });

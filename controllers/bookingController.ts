@@ -5,10 +5,7 @@ import { formatTimestampToLocal } from '../utils/time';
 
 const prisma = getPrisma();
 
-/**
- * Create a new booking for an item
- * POST /items/:id/bookings
- */
+// Create a new booking for an item
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const { id: itemId } = req.params;
@@ -142,9 +139,10 @@ export const createBooking = async (req: Request, res: Response) => {
   }
 };
 
+
+
 /**
  * Get available time slots for an item on a specific date
- * GET /items/:id/available-slots?date=2026-01-16
  */
 export const getAvailableSlots = async (req: Request, res: Response) => {
   try {
@@ -296,8 +294,10 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
   }
 };
 
+
+
 /**
- * Helper: Check if the requested time slot falls within item's availability
+ * Helper fuctions: Check if the requested time slot falls within item's availability
  * Note: We extract date components in UTC to match the ISO input format
  */
 function checkAvailability(item: any, startTime: Date, endTime: Date): boolean {

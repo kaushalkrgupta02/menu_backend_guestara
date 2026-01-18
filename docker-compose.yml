@@ -19,24 +19,29 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - guestara-network
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin-container
+  app:
+    build: .
+    container_name: guestara-app
     restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_EMAIL}"
-      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_PASSWORD}"
-      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
-
     ports:
-      - "8080:80"
+      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}"
+      NODE_ENV: production
+    env_file:
+      - .env
+    networks:
+      - guestara-network
 
 volumes:
-  pgdata: 
-  pgadmin_data:
+  pgdata:
+
+networks:
+  guestara-network:
+    driver: bridge 

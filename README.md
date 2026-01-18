@@ -40,6 +40,81 @@ The core philosophy is database Normalization. By clearing the fields (setting t
 3. type-safe development and validation layer
 4. clear file structure of this repo
 
+## Docker Setup
+
+### Prerequisites
+- Docker and Docker Compose installed
+- `.env` file configured (copy from `.env.example`)
+
+### Quick Start with Docker
+
+1. **Clone and setup environment:**
+   ```bash
+   git clone <repository-url>
+   cd menu_backend_guestara
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+2. **Start the complete stack:**
+   ```bash
+   npm run docker:up
+   ```
+
+3. **Run database migrations:**
+   ```bash
+   docker-compose exec app npx prisma migrate dev --name init
+   ```
+
+4. **Generate Prisma client:**
+   ```bash
+   docker-compose exec app npx prisma generate
+   ```
+
+### Docker Commands
+
+```bash
+# Build and start services
+npm run docker:build && npm run docker:up
+
+# View logs
+npm run docker:logs
+
+# Restart app
+npm run docker:restart
+
+# Stop services
+npm run docker:down
+
+# Clean up (removes containers and volumes)
+docker-compose down -v
+```
+
+### Services
+
+- **Database (PostgreSQL 16)**: `http://localhost:5433`
+- **API Server**: `http://localhost:3000`
+- **API Documentation**: `http://localhost:3000/docs`
+
+### Development vs Production
+
+- **Development**: Use `npm run dev` for hot-reload
+- **Production**: Use Docker for containerized deployment
+
+### Development with Hot-Reload
+
+For development with source code mounting and hot-reload:
+
+```bash
+# Start with development override (mounts source code)
+docker-compose -f docker-compose.yml -f docker-compose.override.yml up
+
+# Or use the convenience script (if added to package.json)
+npm run docker:dev
+```
+
+This mounts your source code into the container and uses `npm run dev` for hot-reload during development.
+
 
 
 

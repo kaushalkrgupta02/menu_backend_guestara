@@ -17,7 +17,6 @@ export function getPrisma(): PrismaClient {
   }
 
   try {
-    //Use the official Postgres adapter for Prisma 7
     const adapter = new PrismaPg({ connectionString: url });
     prisma = new PrismaClient({ adapter });
     return prisma;
