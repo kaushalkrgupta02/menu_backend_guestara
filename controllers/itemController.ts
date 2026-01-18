@@ -400,16 +400,54 @@ export const getItemPrice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const currentTime = req.query.currentTime as string | undefined;
+    const addonIdsParam = req.query.addonIds as string | undefined;
+
+    // Parse addon IDs from comma-separated string or JSON array
+    let addonIds: string[] = [];
+    if (addonIdsParam) {
+      try {
+        // Try parsing as JSON array first
+        addonIds = JSON.parse(addonIdsParam);
+      } catch {
+        // Fall back to comma-separated string
+        addonIds = addonIdsParam.split(',').map(id => id.trim()).filter(Boolean);
+      }
+    }
 
     const item = await prisma.item.findUnique({
       where: { id },
       include: {
         category: true,
-        subcategory: true
+        subcategory: true,
+        addons: {
+          where: { is_active: true }
+        }
       }
     });
 
     if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    // Check for mandatory addons
+    const mandatoryAddons = item.addons.filter(addon => addon.is_mandatory);
+    const missingMandatory = mandatoryAddons.filter(addon => !addonIds.includes(addon.id));
+    
+    if (missingMandatory.length > 0) {
+      return res.status(400).json({ 
+        error: 'Missing mandatory addons',
+        mandatoryAddons: missingMandatory.map(a => ({ id: a.id, name: a.name }))
+      });
+    }
+
+    // Validate provided addon IDs belong to this item
+    const validAddonIds = item.addons.map(a => a.id);
+    const invalidAddons = addonIds.filter(id => !validAddonIds.includes(id));
+    
+    if (invalidAddons.length > 0) {
+      return res.status(400).json({ 
+        error: 'Invalid addon IDs provided',
+        invalidIds: invalidAddons
+      });
+    }
 
     let usageHours: number | undefined = undefined;
 
@@ -435,19 +473,34 @@ export const getItemPrice = async (req: Request, res: Response) => {
     }
 
     const price = resolveItemPrice(item as any, { usageHours, currentTime });
+    const decimal = require('../utils/decimal');
 
-    const effectiveActive = isItemEffectivelyActive(item as any);
-    const finalIsAvailable = !!price.isAvailable && effectiveActive;
+    // Calculate addon prices
+    const selectedAddons = item.addons.filter(addon => addonIds.includes(addon.id));
+    const addonsTotal = selectedAddons.reduce((sum, addon) => 
+      sum + decimal.decimalToNumber(addon.price, 0), 0
+    );
+    const addonsNames = selectedAddons.map(addon => addon.name);
+
+    // Calculate final pricing
+    // Step 1: Base price with discount
+    const baseAfterDiscount = price.basePrice - price.discount;
+    
+    // Step 2: Calculate tax on base price only (addons are not taxed)
+    const taxAmount = (baseAfterDiscount * price.taxPercentage) / 100;
+    
+    // Step 3: Add addons to final total (after tax)
+    const grandTotal = baseAfterDiscount + taxAmount + addonsTotal;
 
     res.json({
       appliedPricingRule: price.appliedPricingRule,
       basePrice: price.basePrice,
+      addonsTotal,
+      addonsName: addonsNames,
       discount: price.discount,
       taxPercentage: price.taxPercentage,
-      taxAmount: price.taxAmount,
-      grandTotal: price.grandTotal,
-      isAvailable: finalIsAvailable,
-      is_active: effectiveActive
+      taxAmount,
+      grandTotal
     });
   } catch (err) {
     console.error(err);

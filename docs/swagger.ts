@@ -28,7 +28,8 @@ const swaggerDocument = {
       categoryId: { name: 'categoryId', in: 'query', schema: { type: 'string' } },
       activeOnly: { name: 'activeOnly', in: 'query', schema: { type: 'boolean', default: true } },
       taxApplicable: { name: 'taxApplicable', in: 'query', schema: { type: 'boolean' } },
-      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional ISO date-time override for DYNAMIC pricing and TIERED bookable items. For bookable TIERED items, calculates usage hours from booking start to this time.' }
+      currentTime: { name: 'currentTime', in: 'query', schema: { type: 'string', format: 'date-time' }, description: 'Optional ISO date-time override for DYNAMIC pricing and TIERED bookable items. For bookable TIERED items, calculates usage hours from booking start to this time.' },
+      addonIds: { name: 'addonIds', in: 'query', schema: { type: 'string' }, description: 'Comma-separated addon IDs or JSON array. Mandatory addons must be included.' }
     },
     schemas: {
       Category: {
@@ -195,15 +196,14 @@ const swaggerDocument = {
       ItemPriceResponse: {
         type: 'object',
         properties: {
-          appliedPricingRule: { type: 'object', description: 'Applied pricing details. Structure varies by pricing type (e.g., { type: "TIERED", applied: { upto: 5, price: 100 } })' },
-          basePrice: { type: 'number' },
-          discount: { type: 'number' },
-          taxPercentage: { type: 'number' },
-          taxAmount: { type: 'number' },
-          grandTotal: { type: 'number' },
-          isAvailable: { type: 'boolean' },
-          is_active: { type: 'boolean' },
-          note: { type: 'string', nullable: true }
+          appliedPricingRule: { type: 'object', description: 'Applied pricing details. Structure varies by pricing type' },
+          basePrice: { type: 'number', description: 'Item base price' },
+          addonsTotal: { type: 'number', description: 'Total price of addons (added after tax)' },
+          addonsName: { type: 'array', items: { type: 'string' }, description: 'Names of selected addons' },
+          discount: { type: 'number', description: 'Discount amount' },
+          taxPercentage: { type: 'number', description: 'Tax percentage (applied on base price only)' },
+          taxAmount: { type: 'number', description: 'Tax amount (calculated on base price only, not addons)' },
+          grandTotal: { type: 'number', description: 'Final payable price (base - discount + tax + addons)' }
         }
       },
       BookingCreate: {
@@ -548,15 +548,17 @@ const swaggerDocument = {
     '/items/{id}/price': {
       get: {
         tags: ['Items'],
-        summary: 'Resolve item price',
-        description: 'Calculate price for an item. For bookable TIERED items, automatically calculates usage hours from booking start to current time.',
+        summary: 'Calculate item price',
+        description: 'Calculate final price with addons. Tax is applied on base price only. Addons are added after tax. Validates mandatory addons are included.',
         parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } }, 
-          { $ref: '#/components/parameters/currentTime' }
+          { $ref: '#/components/parameters/currentTime' },
+          { $ref: '#/components/parameters/addonIds' }
         ],
         responses: {
-          '200': { description: 'Price resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemPriceResponse' } } } },
-          '404': { description: 'Not found' }
+          '200': { description: 'Price calculated', content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemPriceResponse' } } } },
+          '400': { description: 'Missing mandatory addons or invalid addon IDs' },
+          '404': { description: 'Item not found' }
         }
       }
     },
