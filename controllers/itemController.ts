@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { resolveItemPrice } from '../services/price_engine';
-import { formatTimestampToLocal } from '../utils/time';
 import { isItemEffectivelyActive } from '../utils/visibility';
 import {
   createItemSchema,
@@ -15,38 +14,22 @@ import {
   FilterItemsQueryDTO
 } from '../validations/item.validation';
 import { handleValidationError } from '../validations/common.validation';
+import { formatItem, formatPaginatedResponse } from '../dto/formatters';
 
 
 const prisma = getPrisma();
 
-// Helper function to format item response
-const formatItemResponse = (item: any) => {
-  const decimal = require('../utils/decimal');
-  
-  // Map pricing type enum to display names
-  const pricingTypeMap: Record<string, string> = {
-    'A': 'STATIC',
-    'B': 'TIERED',
-    'C': 'COMPLIMENTARY',
-    'D': 'DISCOUNTED',
-    'E': 'DYNAMIC'
-  };
-
-  return {
-    id: item.id,
-    category_id: item.categoryId || item.subcategoryId || null,
-    name: item.name,
-    description: item.description || null,
-    image: item.image || null,
-    pricing_type: item.type_of_pricing ? pricingTypeMap[item.type_of_pricing] : null,
-    pricing_config: item.price_config || null,
-    is_bookable: item.is_bookable,
-    is_active: item.is_active,
-    tax_applicable: item.tax_applicable,
-    tax_percentage: item.tax_percentage ? decimal.decimalToNumber(item.tax_percentage, 0) : null,
-    created_at: item.createdAt ? formatTimestampToLocal(item.createdAt) : null,
-    updated_at: item.updatedAt ? formatTimestampToLocal(item.updatedAt) : null
-  };
+// Legacy helper functions (deprecated - use formatters.ts instead)
+const formatTimestampToLocal = (date: Date) => {
+  return new Date(date).toLocaleString('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 };
 
 export const createItem = async (req: Request, res: Response) => {
@@ -247,16 +230,10 @@ export const listItems = async (req: Request, res: Response) => {
       })
     ]);
 
-    const decimal = require('../utils/decimal');
-
-    const itemsWithPrice = items.map((it) => {
-      return formatItemResponse(it);
-    });
-
-    res.json({ page, limit, total, items: itemsWithPrice });
+    const formattedItems = items.map(formatItem);
+    res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 
@@ -302,11 +279,8 @@ export const filterItems = async (req: Request, res: Response) => {
       })
     ]);
 
-    const itemsWithPrice = items.map((it) => {
-      return formatItemResponse(it);
-    });
-
-    res.json({ page, limit, total, items: itemsWithPrice });
+    const formattedItems = items.map(formatItem);
+    res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
   } catch (err) {
     res.status(400).json(handleValidationError(err));
   }
@@ -376,11 +350,8 @@ export const getItemsByParent = async (req: Request, res: Response) => {
       })
     ]);
 
-    const itemsWithPrice = items.map((it) => {
-      return formatItemResponse(it);
-    });
-
-    res.json({ page, limit, total, items: itemsWithPrice });
+    const formattedItems = items.map(formatItem);
+    res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: (err as Error).message });
@@ -399,7 +370,7 @@ export const getItem = async (req: Request, res: Response) => {
     });
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    res.json(formatItemResponse(item));
+    res.json(formatItem(item));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: (err as Error).message });
@@ -420,7 +391,11 @@ export const getItemPrice = async (req: Request, res: Response) => {
         addonIds = JSON.parse(addonIdsParam);
       } catch {
         // Fall back to comma-separated string
-        addonIds = addonIdsParam.split(',').map(id => id.trim()).filter(Boolean);
+        // Split by comma, trim each ID, and filter out empty strings and whitespace
+        addonIds = addonIdsParam
+          .split(',')
+          .map(id => id.trim())
+          .filter(id => id.length > 0);
       }
     }
 
@@ -455,7 +430,8 @@ export const getItemPrice = async (req: Request, res: Response) => {
     if (invalidAddons.length > 0) {
       return res.status(400).json({ 
         error: 'Invalid addon IDs provided',
-        invalidIds: invalidAddons
+        invalidIds: invalidAddons,
+        availableAddons: item.addons.map(a => ({ id: a.id, name: a.name }))
       });
     }
 

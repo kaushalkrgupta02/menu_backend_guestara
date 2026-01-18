@@ -11,6 +11,7 @@ import {
   ListCategoriesQueryDTO
 } from '../validations/category.validation';
 import { handleValidationError } from '../validations/common.validation';
+import { formatCategory, formatPaginatedResponse } from '../dto/formatters';
 
 const prisma = getPrisma();
 
@@ -57,13 +58,8 @@ export const listCategories = async (req: Request, res: Response) => {
       })
     ]);
 
-    const items = categories.map((r) => ({
-      ...r,
-      createdAt: formatTimestampToLocal(r.createdAt),
-      updatedAt: formatTimestampToLocal(r.updatedAt)
-    }));
-
-    res.json({ page, limit, total, items });
+    const formattedCategories = categories.map(formatCategory);
+    res.json(formatPaginatedResponse(formattedCategories, page, limit, total, item => item));
   } catch (err) {
     console.error(err);
     res.status(400).json(handleValidationError(err));

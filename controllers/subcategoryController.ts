@@ -11,6 +11,7 @@ import {
   ListSubcategoriesQueryDTO
 } from '../validations/subcategory.validation';
 import { handleValidationError } from '../validations/common.validation';
+import { formatSubcategory, formatPaginatedResponse } from '../dto/formatters';
 
 const prisma = getPrisma();
 
@@ -96,13 +97,8 @@ export const listSubcategories = async (req: Request, res: Response) => {
       })
     ]);
 
-    const items = subcategories.map((r) => ({
-      ...r,
-      createdAt: formatTimestampToLocal(r.createdAt),
-      updatedAt: formatTimestampToLocal(r.updatedAt)
-    }));
-
-    res.json({ page, limit, total, items });
+    const formattedSubcategories = subcategories.map(formatSubcategory);
+    res.json(formatPaginatedResponse(formattedSubcategories, page, limit, total, item => item));
   } catch (err) {
     console.error(err);
     res.status(400).json(handleValidationError(err));
