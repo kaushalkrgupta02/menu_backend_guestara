@@ -3,6 +3,7 @@ import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import swaggerDocument from './docs/swagger';
 import { verifyConnection } from './config/db_conn';
+import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 app.use(express.json());
@@ -28,6 +29,9 @@ app.get('/health', async (req, res) => {
     res.status(500).json({ status: 'error', database: 'disconnected', message: (err as Error).message });
   }
 });
+
+//gloabal error handler
+app.use(errorHandler);
 
 export default app;
 
