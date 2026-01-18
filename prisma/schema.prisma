@@ -6,6 +6,20 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PricingKey {
+  A  // STATIC
+  B  // TIERED
+  C  // COMPLIMENTARY
+  D  // DISCOUNTED
+  E  // DYNAMIC
+}
+
+enum BookingStatus {
+  confirmed
+  cancelled
+  completed
+}
+
 model Category {
   id             String        @id @default(cuid())
   name           String        @unique
@@ -40,7 +54,7 @@ model Subcategory {
 }
 
 model Item {
-  id             String       @id @default(cuid())
+  id             String      @id @default(cuid())
   name           String       
   description    String?
   image          String?
@@ -49,12 +63,12 @@ model Item {
   category       Category?    @relation(fields: [categoryId], references: [id])
   subcategoryId  String?
   subcategory    Subcategory? @relation(fields: [subcategoryId], references: [id])
-  base_price     Decimal?   @db.Decimal(12,2)
-  type_of_pricing String?     // e.g., A means 'STATIC', B means 'TIERED', etc.
+  base_price     Decimal?     @db.Decimal(12,2)
+  type_of_pricing PricingKey?
   price_config   Json?
-  is_tax_inherit Boolean     @default(true)
+  is_tax_inherit Boolean      @default(true)
   tax_applicable Boolean?
-  tax_percentage Decimal? @db.Decimal(5,2)
+  tax_percentage Decimal?     @db.Decimal(5,2)
   avl_days       String[]     
   avl_times      Json?        // e.g., [{"start": "08:00", "end": "11:00"}]
   is_bookable    Boolean      @default(false)
@@ -65,14 +79,14 @@ model Item {
 }
 
 model Booking {
-  id         String   @id @default(cuid())
+  id         String        @id @default(cuid())
   itemId     String
-  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  start_time DateTime @db.Timestamptz(3)
-  end_time   DateTime @db.Timestamptz(3)
-  status     String   @default("confirmed") // confirmed, cancelled, completed
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  item       Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  start_time DateTime      @db.Timestamptz(3)
+  end_time   DateTime      @db.Timestamptz(3)
+  status     BookingStatus @default(confirmed)
+  createdAt  DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime      @updatedAt @db.Timestamptz(3)
 
   @@unique([itemId, start_time, end_time])
   @@index([itemId, start_time, end_time])
