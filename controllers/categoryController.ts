@@ -2,27 +2,21 @@ import { Request, Response } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import { 
+  createCategorySchema, 
+  updateCategorySchema,
+  listCategoriesQuerySchema,
+  CreateCategoryDTO,
+  UpdateCategoryDTO,
+  ListCategoriesQueryDTO
+} from '../validations/category.validation';
+import { handleValidationError } from '../validations/common.validation';
 
 const prisma = getPrisma();
 
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const parsed = z.object({
-      name: z.string(),
-      image: z.string().optional(),
-      description: z.string().optional(),
-      tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
-      is_active: z.boolean().optional()
-    }).parse(req.body);
-
-    // if tax_applicable is false, tax_percentage must be 0 and vice versa
-    if (parsed.tax_applicable === false && parsed.tax_percentage && parsed.tax_percentage > 0.0) {
-      throw new Error('If tax_applicable is false, tax_percentage must be 0');
-    }
-    if (parsed.tax_applicable === true && (!parsed.tax_percentage || parsed.tax_percentage <= 0.0)) {
-      throw new Error('If tax_applicable is true, tax_percentage must be greater than 0');
-    }
+    const parsed = createCategorySchema.parse(req.body);
 
     const category = await prisma.category.create({
       data: {
@@ -42,17 +36,14 @@ export const createCategory = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 
 export const listCategories = async (req: Request, res: Response) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
-    const sortBy = (req.query.sortBy as string) || 'createdAt';
-    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const activeOnly = req.query.activeOnly !== 'false';
+    const query = listCategoriesQuerySchema.parse(req.query);
+    const { page, limit, sortBy, sortDir, activeOnly } = query;
 
     const where = activeOnly ? { is_active: true } : {};
 
@@ -75,7 +66,7 @@ export const listCategories = async (req: Request, res: Response) => {
     res.json({ page, limit, total, items });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 

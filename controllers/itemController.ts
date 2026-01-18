@@ -4,6 +4,17 @@ import { z } from 'zod';
 import { resolveItemPrice } from '../services/price_engine';
 import { formatTimestampToLocal } from '../utils/time';
 import { isItemEffectivelyActive } from '../utils/visibility';
+import {
+  createItemSchema,
+  updateItemSchema,
+  listItemsQuerySchema,
+  filterItemsQuerySchema,
+  CreateItemDTO,
+  UpdateItemDTO,
+  ListItemsQueryDTO,
+  FilterItemsQueryDTO
+} from '../validations/item.validation';
+import { handleValidationError } from '../validations/common.validation';
 
 
 const prisma = getPrisma();
@@ -40,45 +51,10 @@ const formatItemResponse = (item: any) => {
 
 export const createItem = async (req: Request, res: Response) => {
   try {
-    const parsed = z.object({
-      name: z.string().trim().min(1, "Name is required"),
-      description: z.string().optional(),
-      image: z.string().url().optional().or(z.literal("")),
-      categoryId: z.string().optional(),
-      subcategoryId: z.string().optional(),
-      base_price: z.number().nonnegative().default(0).refine((n) => Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100), { message: 'base_price must have at most 2 decimal places' }),
-      type_of_pricing: z.string().optional(),
-      price_config: z.any().optional(),
-      is_tax_inherit: z.boolean().optional(),
-      tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
-      avl_days: z.array(z.string()).optional(),
-      avl_times: z.array(z.object({ 
-        start: z.string(), 
-        end: z.string() 
-      })).optional(),
-      is_bookable: z.boolean().optional().default(false),
-      is_active: z.boolean().optional().default(true)
-    }).parse(req.body);
+    const parsed = createItemSchema.parse(req.body);
 
     const catId = parsed.categoryId?.trim();
     const subId = parsed.subcategoryId?.trim();
-
-    if (catId && subId) {
-      throw new Error('An item may belong to either a category or a subcategory, not both');
-    }
-
-    const hasTaxPayload = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
-
-    // Explicit check requested: If user says "Inherit", they cannot send "Tax Data"
-    if (parsed.is_tax_inherit === true && hasTaxPayload) {
-      return res.status(400).json({ 
-        error: "Invalid request: Cannot accept tax payloads when is_tax_inherit is true." 
-      });
-    }
-
-    // Default to true if no tax info is provided, otherwise respect user or auto-set to false
-    const isInheriting = parsed.is_tax_inherit ?? !hasTaxPayload;
 
     const data: any = {
       name: parsed.name,
@@ -89,21 +65,20 @@ export const createItem = async (req: Request, res: Response) => {
       // price_config will be validated and normalized below if provided
       is_bookable: parsed.is_bookable,
       is_active: parsed.is_active,
-      is_tax_inherit: isInheriting,
+      is_tax_inherit: parsed.is_tax_inherit,
       // If inheriting, keep it clean with NULL. If not, map the values.
-      tax_applicable: isInheriting ? null : (parsed.tax_applicable ?? (parsed.tax_percentage! > 0)),
-      tax_percentage: isInheriting ? null : (parsed.tax_percentage ?? 0),
+      tax_applicable: parsed.is_tax_inherit ? null : parsed.tax_applicable,
+      tax_percentage: parsed.is_tax_inherit ? null : (parsed.tax_percentage ?? 0),
     };
-     
 
-    if (isInheriting){
+    if (parsed.is_tax_inherit){
       if (!catId && !subId) {
         return res.status(400).json({ error: "category or sub-category missing how tax inherit then?" });
       }
     }
 
 
-    if (!isInheriting) {
+    if (!parsed.is_tax_inherit) {
       if (data.tax_applicable && data.tax_percentage <= 0) {
         throw new Error('tax_percentage must be > 0 when tax_applicable is true');
       }
@@ -178,11 +153,11 @@ export const createItem = async (req: Request, res: Response) => {
     // Availability Normalization
     if (parsed.avl_days) {
       const valid = ['mon','tue','wed','thu','fri','sat','sun'];
-      data.avl_days = parsed.avl_days.map(d => d.toLowerCase()).filter(d => valid.includes(d));
+      data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => valid.includes(d));
     }
     if (parsed.avl_times) {
       const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
-      data.avl_times = parsed.avl_times.filter(t => 
+      data.avl_times = parsed.avl_times.filter((t: any) => 
         timeRegex.test(t.start) && timeRegex.test(t.end) && t.start < t.end
       );
     }
@@ -225,26 +200,17 @@ export const createItem = async (req: Request, res: Response) => {
     });
 
   } catch (err: any) {
-    const message = err instanceof z.ZodError ? err.issues : err.message;
-    res.status(400).json({ error: message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 
 export const listItems = async (req: Request, res: Response) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
-    const sortBy = (req.query.sortBy as string) || 'createdAt';
-    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const qSearch = (req.query.q as string) || undefined;
-    const categoryId = req.query.categoryId as string | undefined;
-    const activeOnly = req.query.activeOnly !== 'false';
-    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
-    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
-    const taxApplicable = req.query.taxApplicable as string | undefined;
+    const query = listItemsQuerySchema.parse(req.query);
+    const { page, limit, sortBy, sortDir, q, categoryId, minPrice, maxPrice, taxApplicable, activeOnly } = query;
 
     const where: any = {};
-    if (qSearch) where.name = { contains: qSearch, mode: 'insensitive' };
+    if (q) where.name = { contains: q, mode: 'insensitive' };
     if (categoryId) where.categoryId = categoryId;
     if (activeOnly) where.is_active = true;
 
@@ -255,17 +221,14 @@ export const listItems = async (req: Request, res: Response) => {
       if (maxPrice !== undefined) where.base_price.lte = maxPrice;
     }
 
-    // Tax applicable filtering with inheritance support (Option B)
+    // Tax applicable filtering with inheritance support
     if (taxApplicable !== undefined) {
-      const isTaxApplicable = taxApplicable === 'true';
-      if (isTaxApplicable) {
-        // Items that have tax: either inherit from active parent or have own tax_applicable=true
+      if (taxApplicable) {
         where.OR = [
           { AND: [{ is_tax_inherit: true }, { OR: [{ category: { tax_applicable: true } }, { subcategory: { tax_applicable: true } }] }] },
           { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
         ];
       } else {
-        // Items without tax
         where.AND = [
           { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }, { subcategory: { tax_applicable: false } }] },
           { tax_applicable: { not: true } }
@@ -299,19 +262,8 @@ export const listItems = async (req: Request, res: Response) => {
 
 export const filterItems = async (req: Request, res: Response) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
-    const sortBy = (req.query.sortBy as string) || 'createdAt';
-    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
-    const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
-    const taxApplicable = req.query.taxApplicable as string | undefined;
-
-    const categoryActiveRaw = req.query.categoryActive as string | undefined;
-    const subcategoryActiveRaw = req.query.subcategoryActive as string | undefined;
-
-    const categoryActive = categoryActiveRaw === 'true' ? true : categoryActiveRaw === 'false' ? false : undefined;
-    const subcategoryActive = subcategoryActiveRaw === 'true' ? true : subcategoryActiveRaw === 'false' ? false : undefined;
+    const query = filterItemsQuerySchema.parse(req.query);
+    const { page, limit, sortBy, sortDir, minPrice, maxPrice, categoryActive, subcategoryActive, taxApplicable } = query;
 
     const where: any = {};
     if (categoryActive !== undefined) where.category = { is_active: categoryActive };
@@ -324,10 +276,9 @@ export const filterItems = async (req: Request, res: Response) => {
       if (maxPrice !== undefined) where.base_price.lte = maxPrice;
     }
 
-    // Tax applicable filtering with inheritance support (Option B)
+    // Tax applicable filtering with inheritance support
     if (taxApplicable !== undefined) {
-      const isTaxApplicable = taxApplicable === 'true';
-      if (isTaxApplicable) {
+      if (taxApplicable) {
         where.OR = [
           { AND: [{ is_tax_inherit: true }, { OR: [{ category: { tax_applicable: true } }, { subcategory: { tax_applicable: true } }] }] },
           { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
@@ -357,8 +308,7 @@ export const filterItems = async (req: Request, res: Response) => {
 
     res.json({ page, limit, total, items: itemsWithPrice });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 

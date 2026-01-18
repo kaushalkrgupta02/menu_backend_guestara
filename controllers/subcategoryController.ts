@@ -2,49 +2,41 @@ import { Request, Response } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import {
+  createSubcategorySchema,
+  updateSubcategorySchema,
+  listSubcategoriesQuerySchema,
+  CreateSubcategoryDTO,
+  UpdateSubcategoryDTO,
+  ListSubcategoriesQueryDTO
+} from '../validations/subcategory.validation';
+import { handleValidationError } from '../validations/common.validation';
 
 const prisma = getPrisma();
 
 export const createSubcategory = async (req: Request, res: Response) => {
   try {
-    const parsed = z.object({
-      categoryId: z.string(),
-      name: z.string(),
-      image: z.string().optional(),
-      description: z.string().optional(),
-      tax_applicable: z.boolean().optional(),
-      tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
-      is_active: z.boolean().optional()
-    }).parse(req.body);
+    const parsed = createSubcategorySchema.parse(req.body);
 
-    //name uniqueness within category
+    // Name uniqueness check within category
     const existing = await prisma.subcategory.findFirst({
       where: {
         name: parsed.name,
         categoryId: parsed.categoryId
-        }
+      }
     });
     if (existing) {
-        return res.status(400).json({ error: 'Subcategory name must be unique within its category' });
+      return res.status(400).json({ error: 'Subcategory name must be unique within its category' });
     }
 
-
-
-    // Determine tax inheritance: if tax fields are not provided, mark subcategory as inheriting and leave tax fields null
-    let isTaxInherit = true;
-    let tax_applicable: boolean | undefined = parsed.tax_applicable;
-    let tax_percentage: number | undefined = parsed.tax_percentage;
-
-    if (parsed.tax_applicable !== undefined || parsed.tax_percentage !== undefined) {
-      // explicit tax provided => do not inherit
-      isTaxInherit = false;
-    } else {
-      // no explicit tax: ensure parent exists; subcategory will inherit at runtime
-      const category = await prisma.category.findUnique({ where: { id: parsed.categoryId } });
-      if (!category) return res.status(404).json({ error: 'Category not found' });
-      tax_applicable = undefined;
-      tax_percentage = undefined;
+    // Verify category exists
+    const category = await prisma.category.findUnique({ where: { id: parsed.categoryId } });
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
     }
+
+    // Determine tax inheritance
+    const isTaxInherit = parsed.tax_applicable === undefined && parsed.tax_percentage === undefined;
 
     const subcategory = await prisma.subcategory.create({
       data: {
@@ -52,8 +44,8 @@ export const createSubcategory = async (req: Request, res: Response) => {
         name: parsed.name,
         image: parsed.image,
         description: parsed.description,
-        tax_applicable: isTaxInherit ? null as any : tax_applicable,
-        tax_percentage: isTaxInherit ? null as any : (tax_percentage as any),
+        tax_applicable: isTaxInherit ? null : parsed.tax_applicable,
+        tax_percentage: isTaxInherit ? null : parsed.tax_percentage,
         is_tax_inherit: isTaxInherit,
         is_active: parsed.is_active
       }
@@ -66,35 +58,27 @@ export const createSubcategory = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(400).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 
 export const listSubcategories = async (req: Request, res: Response) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
-    const sortBy = (req.query.sortBy as string) || 'createdAt';
-    const sortDir = ((req.query.sortDir as string) || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
-    const categoryId = req.query.categoryId as string | undefined;
-    const activeOnly = req.query.activeOnly !== 'false';
-    const taxApplicable = req.query.taxApplicable as string | undefined;
+    const query = listSubcategoriesQuerySchema.parse(req.query);
+    const { page, limit, sortBy, sortDir, categoryId, activeOnly, taxApplicable } = query;
 
     const where: any = {};
     if (categoryId) where.categoryId = categoryId;
     if (activeOnly) where.is_active = true;
 
-    // Tax applicable filtering with inheritance support (Option B)
+    // Tax applicable filtering with inheritance support
     if (taxApplicable !== undefined) {
-      const isTaxApplicable = taxApplicable === 'true';
-      if (isTaxApplicable) {
-        // Subcategories that have tax: either inherit from active parent or have own tax_applicable=true
+      if (taxApplicable) {
         where.OR = [
           { AND: [{ is_tax_inherit: true }, { category: { tax_applicable: true } }] },
           { AND: [{ is_tax_inherit: false }, { tax_applicable: true }] }
         ];
       } else {
-        // Subcategories without tax
         where.AND = [
           { OR: [{ is_tax_inherit: false }, { category: { tax_applicable: false } }] },
           { tax_applicable: { not: true } }
@@ -121,7 +105,7 @@ export const listSubcategories = async (req: Request, res: Response) => {
     res.json({ page, limit, total, items });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: (err as Error).message });
+    res.status(400).json(handleValidationError(err));
   }
 };
 
