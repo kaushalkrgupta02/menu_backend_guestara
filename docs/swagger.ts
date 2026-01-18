@@ -12,6 +12,7 @@ const swaggerDocument = {
     { name: 'Subcategories', description: 'Manage subcategories' },
     { name: 'Items', description: 'Manage items and pricing' },
     { name: 'Bookings', description: 'Manage bookings and availability' },
+    { name: 'Addons', description: 'Manage item add-ons' },
     { name: 'Bulk', description: 'Bulk operations' }
   ],
 
@@ -242,6 +243,38 @@ const swaggerDocument = {
           itemId: { type: 'string' },
           itemName: { type: 'string' },
           slots: { type: 'array', items: { $ref: '#/components/schemas/AvailableSlot' } }
+        }
+      },
+      AddonCreate: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Addon name' },
+          price: { type: 'number', description: 'Addon price' },
+          isMandatory: { type: 'boolean', description: 'Whether this addon is mandatory', default: false },
+          isActive: { type: 'boolean', description: 'Whether this addon is active', default: true }
+        },
+        required: ['name', 'price']
+      },
+      Addon: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          itemId: { type: 'string' },
+          name: { type: 'string' },
+          price: { type: 'number' },
+          is_mandatory: { type: 'boolean' },
+          is_active: { type: 'boolean' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      AddonsListResponse: {
+        type: 'object',
+        properties: {
+          itemId: { type: 'string' },
+          itemName: { type: 'string' },
+          total: { type: 'integer' },
+          addons: { type: 'array', items: { $ref: '#/components/schemas/Addon' } }
         }
       },
       Error: { type: 'object', properties: { error: { type: 'string' } } }
@@ -569,6 +602,49 @@ const swaggerDocument = {
         responses: {
           '200': { description: 'Available slots returned', content: { 'application/json': { schema: { $ref: '#/components/schemas/AvailableSlotsResponse' } } } },
           '400': { description: 'Invalid request or item not bookable' },
+          '404': { description: 'Item not found' }
+        }
+      }
+    },
+
+    '/items/{id}/addons': {
+      post: {
+        tags: ['Addons'],
+        summary: 'Create addon',
+        description: 'Create a new addon for an item. Addons can be optional or mandatory and affect final price.',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Item ID' }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/AddonCreate' },
+              example: {
+                name: 'Tomato Ketchup',
+                price: 1.5,
+                isMandatory: false,
+                isActive: true
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'Addon created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Addon' } } } },
+          '400': { description: 'Invalid request' },
+          '404': { description: 'Item not found' }
+        }
+      },
+      get: {
+        tags: ['Addons'],
+        summary: 'List addons',
+        description: 'Get all addons for an item',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Item ID' },
+          { name: 'activeOnly', in: 'query', schema: { type: 'boolean', default: true }, description: 'Filter active addons only' }
+        ],
+        responses: {
+          '200': { description: 'Addons list returned', content: { 'application/json': { schema: { $ref: '#/components/schemas/AddonsListResponse' } } } },
           '404': { description: 'Item not found' }
         }
       }
