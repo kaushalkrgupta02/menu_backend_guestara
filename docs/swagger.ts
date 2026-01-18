@@ -6,6 +6,13 @@ const swaggerDocument = {
     description: 'API for managing categories, subcategories, items, pricing, availability, and add-ons.',
   },
   servers: [{ url: 'http://localhost:3000' }],
+  tags: [
+    { name: 'Health', description: 'Health check' },
+    { name: 'Categories', description: 'Manage categories' },
+    { name: 'Subcategories', description: 'Manage subcategories' },
+    { name: 'Items', description: 'Manage items and pricing' },
+    { name: 'Bulk', description: 'Bulk operations' }
+  ],
 
   components: {
     parameters: {
@@ -253,19 +260,25 @@ const swaggerDocument = {
   paths: {
     '/health': {
       get: {
-        summary: 'Health Check',
+        tags: ['Health'],
+        summary: 'Health',
+        description: 'Simple health check',
         responses: { '200': { description: 'OK' } }
       }
     },
 
     '/categories': {
       post: {
-        summary: 'Create a category',
+        tags: ['Categories'],
+        summary: 'Create',
+        description: 'Create a category. Optional fields may be omitted.',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CategoryCreate' } } } },
         responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Category' } } } } }
       },
       get: {
-        summary: 'List categories',
+        tags: ['Categories'],
+        summary: 'List',
+        description: 'List categories',
         parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/sortBy' }, { $ref: '#/components/parameters/sortDir' }, { $ref: '#/components/parameters/activeOnly' }],
         responses: {
           '200': {
@@ -290,7 +303,9 @@ const swaggerDocument = {
 
     '/categories/{id}': {
       get: {
-        summary: 'Get category with subcategories & items',
+        tags: ['Categories'],
+        summary: 'Get',
+        description: 'Get category with subcategories and items',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           '200': {
@@ -316,7 +331,9 @@ const swaggerDocument = {
         }
       },
       patch: {
-        summary: 'Patch a category ',
+        tags: ['Categories'],
+        summary: 'Update',
+        description: 'Update category. Request payload should contain only fields to update.',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CategoryUpdate' } } } },
         responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Category' } } } } }
@@ -326,12 +343,16 @@ const swaggerDocument = {
 
     '/subcategories': {
       post: {
-        summary: 'Create a subcategory',
+        tags: ['Subcategories'],
+        summary: 'Create',
+        description: 'Create a subcategory. Optional fields may be omitted.',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/SubcategoryCreate' } } } },
         responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } } }
       },
       get: {
-        summary: 'List subcategories',
+        tags: ['Subcategories'],
+        summary: 'List',
+        description: 'List subcategories',
         parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/categoryId' }],
         responses: { '200': { description: 'OK' } }
       }
@@ -340,11 +361,14 @@ const swaggerDocument = {
     '/subcategories/{id}': {
       get: {
         summary: 'Get a subcategory with items',
+        tags: ['Subcategories'],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'OK', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } }, '404': { description: 'Not found' } }
       },
       patch: {
-        summary: 'Patch a subcategory',
+        summary: 'Update',
+        description: 'Update a subcategory. Request payload should contain only fields to update.',
+        tags: ['Subcategories'],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/SubcategoryUpdate' } } } },
         responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Subcategory' } } } } }
@@ -354,12 +378,15 @@ const swaggerDocument = {
 
     '/items': {
       post: {
-        summary: 'Create an item',
+        tags: ['Items'],
+        summary: 'Create',
+        description: 'Create an item. Optional fields may be omitted.',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemCreate' } } } },
         responses: { '201': { description: 'Created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } } } }
       },
       get: {
         summary: 'List items',
+        tags: ['Items'],
         parameters: [{ $ref: '#/components/parameters/page' }, { $ref: '#/components/parameters/limit' }, { $ref: '#/components/parameters/q' }, { $ref: '#/components/parameters/minPrice' }, { $ref: '#/components/parameters/maxPrice' }],
         responses: { '200': { description: 'OK' } }
       }
@@ -367,6 +394,7 @@ const swaggerDocument = {
 
     '/items/filter': {
       get: {
+        tags: ['Items'],
         summary: 'Filter items by parent active flags',
         parameters: [
           { name: 'categoryActive', in: 'query', schema: { type: 'boolean' }, description: 'Filter items whose parent category is active (true) or inactive (false)' },
@@ -380,6 +408,7 @@ const swaggerDocument = {
 
     '/items/by-parent': {
       get: {
+        tags: ['Items'],
         summary: 'Get items for a specific parent (category or subcategory) and optionally filter by parent is_active',
         parameters: [
           { name: 'categoryId', in: 'query', schema: { type: 'string' }, description: 'Provide category id to list items under this category (exclusive with subcategoryId)' },
@@ -394,7 +423,9 @@ const swaggerDocument = {
 
     '/items/bulk/price-config': {
       patch: {
-        summary: 'Bulk update price_config for items under a category or subcategory by types',
+        tags: ['Bulk','Items'],
+        summary: 'Bulk update price_config',
+        description: 'Update price_config for multiple items under a parent',
         requestBody: {
           required: true,
           content: {
@@ -429,7 +460,9 @@ const swaggerDocument = {
 
     '/items/{id}': {
       patch: {
-        summary: 'Patch an item',
+        tags: ['Items'],
+        summary: 'Update',
+        description: 'Update an item. Request payload should contain only fields to update.',
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemUpdate' } } } },
         responses: { '200': { description: 'Updated', content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } } } }
@@ -440,8 +473,8 @@ const swaggerDocument = {
 
     '/items/{id}/price': {
       get: {
-        summary: 'Resolve item price',
-        parameters: [
+        tags: ['Items'],
+        summary: 'Resolve item price',        description: 'Resolve price (supports usageHours and currentTime)',        parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } }, 
           { $ref: '#/components/parameters/usageHours' }, 
           { $ref: '#/components/parameters/currentTime' }
