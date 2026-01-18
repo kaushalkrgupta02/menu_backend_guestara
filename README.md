@@ -28,6 +28,8 @@ A Node.js/Express backend for managing restaurant menus, services, pricing, book
 ```
 
 ## Database Schema
+![Database Schema Diagram](./docs/localhost_db_schema_final11.jpg)
+
 
 ### Key Tables
 
@@ -106,6 +108,9 @@ If `is_tax_inherit=false`, the item has its own tax rate instead of inheriting.
 
    # Generate Prisma client
    npm run prisma:generate
+
+   # (Optional) Seed sample data for testing
+   npm run prisma:seed
    ```
 
 4. **Start Development Server**
@@ -138,7 +143,7 @@ npm run dev
 ```bash
 # Open Prisma Studio (visual database tool)
 npm run prisma:studio
-# Opens at http://localhost:5555
+# Opens at http://localhost:5555 with all your tables and data
 ```
 
 ### Database Commands
@@ -168,7 +173,9 @@ npm run prisma:migrate
   "db:logs": "docker-compose logs -f db",
   "prisma:studio": "prisma studio --config ./prisma/prisma.config.ts",
   "prisma:migrate": "prisma migrate dev --name init_schema --config ./prisma/prisma.config.ts",
-  "prisma:generate": "prisma generate"
+  "prisma:generate": "prisma generate --config ./prisma/prisma.config.ts",
+  "prisma:status": "prisma migrate status --config ./prisma/prisma.config.ts",
+  "prisma:seed": "ts-node prisma/seed.ts"
 }
 ```
 
@@ -218,12 +225,18 @@ npm run prisma:migrate
 
 ### View Migration Status
 ```bash
-npx prisma migrate status --config ./prisma/prisma.config.ts
+npm run prisma:status
 ```
 
 ### Fix Prisma Client Issues
 ```bash
 npm run prisma:generate
+```
+
+### Seed Sample Data
+```bash
+# Populate database with test data (categories, items, bookings, addons)
+npm run prisma:seed
 ```
 
 ## Important Notes
@@ -250,7 +263,7 @@ npm run prisma:generate
 
 ### "Migration conflicts"
 ```bash
-npx prisma migrate status --config ./prisma/prisma.config.ts
+npm run prisma:status
 # If conflicts exist, reset in development:
 npm run db:down
 rm -rf prisma/migrations
