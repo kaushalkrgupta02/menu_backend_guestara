@@ -57,8 +57,24 @@ model Item {
   tax_percentage Decimal? @db.Decimal(5,2)
   avl_days       String[]     
   avl_times      Json?        // e.g., [{"start": "08:00", "end": "11:00"}]
+  is_bookable    Boolean      @default(false)
+  bookings       Booking[]
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+}
+
+model Booking {
+  id         String   @id @default(cuid())
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  start_time DateTime @db.Timestamptz(3)
+  end_time   DateTime @db.Timestamptz(3)
+  status     String   @default("confirmed") // confirmed, cancelled, completed
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([itemId, start_time, end_time])
+  @@index([itemId, start_time, end_time])
 }
 
 // model Addon {

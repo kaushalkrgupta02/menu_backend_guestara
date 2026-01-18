@@ -11,6 +11,7 @@ const swaggerDocument = {
     { name: 'Categories', description: 'Manage categories' },
     { name: 'Subcategories', description: 'Manage subcategories' },
     { name: 'Items', description: 'Manage items and pricing' },
+    { name: 'Bookings', description: 'Manage bookings and availability' },
     { name: 'Bulk', description: 'Bulk operations' }
   ],
 
@@ -136,6 +137,7 @@ const swaggerDocument = {
             items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
             nullable: true 
           },
+          is_bookable: { type: 'boolean', description: 'Whether this item can be booked (e.g., yoga class, meeting room)' },
           resolvedPrice: { $ref: '#/components/schemas/ItemPriceResponse', nullable: true },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
@@ -161,6 +163,7 @@ const swaggerDocument = {
             items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
             nullable: true 
           },
+          is_bookable: { type: 'boolean', nullable: true, description: 'Whether this item can be booked' },
           is_active: { type: 'boolean', nullable: true }
         },
         required: ['name']
@@ -185,6 +188,7 @@ const swaggerDocument = {
             items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
             nullable: true 
           },
+          is_bookable: { type: 'boolean', nullable: true, description: 'Whether this item can be booked' },
           is_active: { type: 'boolean', nullable: true }
         }
       },
@@ -201,6 +205,45 @@ const swaggerDocument = {
           isAvailable: { type: 'boolean' },
           is_active: { type: 'boolean' },
           note: { type: 'string', nullable: true }
+        }
+      },
+      BookingCreate: {
+        type: 'object',
+        properties: {
+          startTime: { type: 'string', format: 'date-time', description: 'ISO 8601 datetime (e.g., 2026-01-16T09:00:00.000Z)' },
+          endTime: { type: 'string', format: 'date-time', description: 'ISO 8601 datetime (e.g., 2026-01-16T10:00:00.000Z)' }
+        },
+        required: ['startTime', 'endTime']
+      },
+      Booking: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          itemId: { type: 'string' },
+          start_time: { type: 'string', format: 'date-time' },
+          end_time: { type: 'string', format: 'date-time' },
+          status: { type: 'string', enum: ['confirmed', 'cancelled', 'completed'] },
+          item: { type: 'object', description: 'Item details' },
+          createdAt: { type: 'string', format: 'date-time' },
+          updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      AvailableSlot: {
+        type: 'object',
+        properties: {
+          startTime: { type: 'string', description: 'Time in HH:MM format (e.g., 09:00)' },
+          endTime: { type: 'string', description: 'Time in HH:MM format (e.g., 10:00)' },
+          available: { type: 'boolean', description: 'Whether this slot is available for booking' }
+        }
+      },
+      AvailableSlotsResponse: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'Requested date (YYYY-MM-DD)' },
+          dayOfWeek: { type: 'string', description: 'Day of week (mon, tue, etc.)' },
+          itemId: { type: 'string' },
+          itemName: { type: 'string' },
+          slots: { type: 'array', items: { $ref: '#/components/schemas/AvailableSlot' } }
         }
       },
       Error: { type: 'object', properties: { error: { type: 'string' } } }
@@ -482,6 +525,52 @@ const swaggerDocument = {
         responses: {
           '200': { description: 'Price resolved', content: { 'application/json': { schema: { $ref: '#/components/schemas/ItemPriceResponse' } } } },
           '404': { description: 'Not found' }
+        }
+      }
+    },
+
+    '/items/{id}/bookings': {
+      post: {
+        tags: ['Bookings'],
+        summary: 'Create booking',
+        description: 'Book a time slot for an item. Prevents double booking and validates availability.',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Item ID' }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/BookingCreate' },
+              example: {
+                startTime: '2026-01-16T09:00:00.000Z',
+                endTime: '2026-01-16T10:00:00.000Z'
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'Booking created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Booking' } } } },
+          '400': { description: 'Invalid request or item not bookable' },
+          '404': { description: 'Item not found' },
+          '409': { description: 'Time slot already booked (conflict)' }
+        }
+      }
+    },
+
+    '/items/{id}/available-slots': {
+      get: {
+        tags: ['Bookings'],
+        summary: 'Get available slots',
+        description: 'Get available time slots for an item on a specific date',
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Item ID' },
+          { name: 'date', in: 'query', required: true, schema: { type: 'string', format: 'date' }, description: 'Date in YYYY-MM-DD format (e.g., 2026-01-16)' }
+        ],
+        responses: {
+          '200': { description: 'Available slots returned', content: { 'application/json': { schema: { $ref: '#/components/schemas/AvailableSlotsResponse' } } } },
+          '400': { description: 'Invalid request or item not bookable' },
+          '404': { description: 'Item not found' }
         }
       }
     }

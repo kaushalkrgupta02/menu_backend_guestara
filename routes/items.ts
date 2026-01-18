@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { createItem, listItems, getItem, getItemPrice, patchItem, filterItems, getItemsByParent, bulkUpdatePriceConfig } from '../controllers/itemController';
+import { createBooking, getAvailableSlots } from '../controllers/bookingController';
 
 const router = Router();
 
@@ -11,6 +12,8 @@ router.get('/', listItems);
 router.get('/:id', getItem);
 router.patch('/:id', patchItem);
 router.get('/:id/price', getItemPrice);
+router.post('/:id/bookings', createBooking);
+router.get('/:id/available-slots', getAvailableSlots);
 router.delete('/:id', async (req, res) => {
   // Soft delete
   const pool = (await import('../config/db_conn')).default;

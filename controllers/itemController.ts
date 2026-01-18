@@ -28,6 +28,7 @@ export const createItem = async (req: Request, res: Response) => {
         start: z.string(), 
         end: z.string() 
       })).optional(),
+      is_bookable: z.boolean().optional().default(false),
       is_active: z.boolean().optional().default(true)
     }).parse(req.body);
 
@@ -57,6 +58,7 @@ export const createItem = async (req: Request, res: Response) => {
       base_price: parsed.base_price,
       type_of_pricing: parsed.type_of_pricing,
       // price_config will be validated and normalized below if provided
+      is_bookable: parsed.is_bookable,
       is_active: parsed.is_active,
       is_tax_inherit: isInheriting,
       // If inheriting, keep it clean with NULL. If not, map the values.
@@ -449,6 +451,7 @@ export const patchItem = async (req: Request, res: Response) => {
       tax_percentage: z.number().optional().refine((n) => n === undefined || (Number.isFinite(n) && Math.round(n * 100) === Math.round(n * 100)), { message: 'tax_percentage must have at most 2 decimal places' }),
       avl_days: z.array(z.string()).optional(),
       avl_times: z.array(z.object({ start: z.string(), end: z.string() })).optional(),
+      is_bookable: z.boolean().optional(),
       is_active: z.boolean().optional()
     }).parse(req.body);
 
@@ -579,7 +582,7 @@ export const patchItem = async (req: Request, res: Response) => {
     // If the resulting pricing type is DYNAMIC (type 'E'), require avl_times to be present (either in patch or existing) and ensure windows intersect availability times
     if (targetType === 'E') {
       const effectiveAvl = parsed.avl_times ? parsed.avl_times : existing.avl_times;
-      if (!effectiveAvl || effectiveAvl.length === 0) {
+      if (!effectiveAvl || !Array.isArray(effectiveAvl) || effectiveAvl.length === 0) {
         return res.status(400).json({ error: 'DYNAMIC pricing (type E) requires avl_times to be present (either in request or already set on the item).' });
       }
 
@@ -593,7 +596,7 @@ export const patchItem = async (req: Request, res: Response) => {
       // For patches, ensure every dynamic window is fully contained within one of the effective avl_times
       const allContained = windows.every((w: any) => {
         const wStart = toMinutes(w.start); const wEnd = toMinutes(w.end);
-        return effectiveAvl.some((a: any) => {
+        return (effectiveAvl as any[]).some((a: any) => {
           const aStart = toMinutes(a.start); const aEnd = toMinutes(a.end);
           return wStart >= aStart && wEnd <= aEnd;
         });

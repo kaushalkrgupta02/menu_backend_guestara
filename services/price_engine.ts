@@ -80,7 +80,7 @@ export const resolveItemPrice = (item: any, context: { usageHours?: number, curr
   let basePrice = 0;
   let discount = 0;
   let isAvailable = true;
-  let appliedPricingRule: string | null = null;
+  let appliedPricingRule: any = null;
 
   switch (type) {
     case 'STATIC':
