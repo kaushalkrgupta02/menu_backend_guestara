@@ -456,11 +456,13 @@ docker run -p 3000:3000 --env-file .env guestara-app
 
 The `Dockerfile` uses Node.js 20-alpine with multi-stage build for minimal image size.
 
+---
 
 ## Loom Video Walkthrough
 
 [Watch the video walkthrough](https://www.loom.com/share/ae1f810116cc4a53b1e36d9a8bca8eb5)
 
+---
 
 ## Data Modeling & Design Decisions
 
