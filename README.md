@@ -111,7 +111,7 @@ A Node.js/Express backend for managing restaurant menus, services, pricing, book
 - **Double Booking Prevention:**
   1. Every bookable item has `avl_time` and `avl_days` fields to define available slots.
   2. When a booking is requested, the system checks if the requested time matches the item's available time and day.
-  3. If a certain time slot is booked and confirmed, that slot is subtracted from the item's `avl_time`, so the remaining availability is always accurate and up-to-date.
+  3. I am currently book though out the slot but If a certain time slot is booked and confirmed, that slot is subtracted from the item's `avl_time`, so the remaining availability is always accurate and up-to-date (thought for partial booking)
 
 ## API Features & Examples
 
@@ -457,6 +457,10 @@ docker run -p 3000:3000 --env-file .env guestara-app
 The `Dockerfile` uses Node.js 20-alpine with multi-stage build for minimal image size.
 
 
+## Loom Video Walkthrough
+
+[Watch the video walkthrough](https://www.loom.com/share/ae1f810116cc4a53b1e36d9a8bca8eb5)
+
 
 ## Data Modeling & Design Decisions
 
@@ -475,7 +479,7 @@ The `Dockerfile` uses Node.js 20-alpine with multi-stage build for minimal image
 - **Double-Booking Prevention:**
   1. Every bookable item has `avl_time` and `avl_days` fields to define available slots.
   2. When a booking is requested, the system checks if the requested time matches the item's available time and day.
-  3. Confirmed bookings subtract the booked time from the item's `avl_time`, so remaining availability is always accurate and up-to-date.
+  3. Confirmed bookings subtract the booked time from the item's `avl_time`, so remaining availability is always accurate and up-to-date in terms of partial booking. Full booked slot is not showing on availiblity and hence double booking prevented
 
 - **PostgreSQL vs NoSQL Tradeoff:**
   - PostgreSQL was chosen for its "ACID by design." compliance, strong data consistency, and support for complex relationships. The use of JSONB fields provides NoSQL-like flexibility for pricing configs, while still benefiting from relational integrity and transactional guarantees.
