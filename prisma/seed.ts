@@ -77,7 +77,7 @@ async function main() {
       is_active: true,
       is_bookable: false,
       subcategoryId: vegetarianSub.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], // Format: 3-letter abbreviations
       avl_times: [
         { start: '11:00', end: '23:00' },
       ],
@@ -104,7 +104,7 @@ async function main() {
       is_active: true,
       is_bookable: false,
       categoryId: beveragesCategory.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri'], // Format: 3-letter abbreviations
       avl_times: [
         { start: '12:00', end: '22:00' },
       ],
@@ -129,7 +129,7 @@ async function main() {
       is_active: true,
       is_bookable: false,
       categoryId: beveragesCategory.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri'], // Format: 3-letter abbreviations
       avl_times: [
         { start: '17:00', end: '20:00' },
       ],
@@ -145,7 +145,7 @@ async function main() {
       is_active: true,
       is_bookable: false,
       categoryId: beveragesCategory.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], // Format: 3-letter abbreviations
     },
   });
 
@@ -168,7 +168,7 @@ async function main() {
       is_active: true,
       is_bookable: false,
       categoryId: beveragesCategory.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], // Format: 3-letter abbreviations
     },
   });
 
@@ -183,7 +183,7 @@ async function main() {
       is_active: true,
       is_bookable: true,
       categoryId: servicesCategory.id,
-      avl_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      avl_days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'], // Format: 3-letter abbreviations
       avl_times: [
         { start: '06:00', end: '08:00' },
         { start: '18:00', end: '19:30' },

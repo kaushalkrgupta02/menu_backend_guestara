@@ -1,12 +1,17 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import { asyncHandler } from '../middleware/errorHandler';
 
 const prisma = getPrisma();
 
+// Day constants
+const DAYS_ABBREVIATED = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 // Create a new booking for an item
-export const createBooking = async (req: Request, res: Response) => {
+export const createBooking = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: itemId } = req.params;
 
@@ -15,8 +20,9 @@ export const createBooking = async (req: Request, res: Response) => {
       endTime: z.string().datetime()
     }).parse(req.body);
 
-    const startTime = new Date(parsed.startTime);
-    const endTime = new Date(parsed.endTime);
+    // Convert ISO datetime to Date objects for validation
+    let startTime = new Date(parsed.startTime);
+    let endTime = new Date(parsed.endTime);
 
     // Validate time range
     if (startTime >= endTime) {
@@ -27,6 +33,15 @@ export const createBooking = async (req: Request, res: Response) => {
     if (startTime < new Date()) {
       return res.status(400).json({ error: 'Cannot book slots in the past' });
     }
+
+    // Convert to local time for storage by creating new Date objects
+    // This ensures times are stored in local timezone format (DD-MM-YYYY HH:MM:SS)
+    const localStartTime = new Date(startTime.getTime());
+    const localEndTime = new Date(endTime.getTime());
+    
+    // Override startTime and endTime with local versions for storage
+    startTime = localStartTime;
+    endTime = localEndTime;
 
     // Find the item and check if it's bookable
     const item = await prisma.item.findUnique({
@@ -52,11 +67,34 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'This item or its parent is not active' });
     }
 
-    // Validate the booking falls within item's availability
+    // Validate booking must match one of the defined availability slots (full slot booking only)
+    const avlTimes = (item.avl_times as any) || [];
+    const bookingMatchesSlot = avlTimes.some((timeSlot: any) => {
+      // Compare times in UTC format (HH:MM strings)
+      // Both the slot times and booking times are in HH:MM format
+      const bookingStartStr = formatTimeStringUTC(startTime);
+      const bookingEndStr = formatTimeStringUTC(endTime);
+      
+      // Booking must exactly match the slot
+      return bookingStartStr === timeSlot.start && bookingEndStr === timeSlot.end;
+    });
+
+    if (!bookingMatchesSlot) {
+      return res.status(400).json({ 
+        error: 'Booking time must match one of the available time slots exactly',
+        availableSlots: avlTimes,
+        requestedTime: {
+          start: formatTimeStringUTC(startTime),
+          end: formatTimeStringUTC(endTime)
+        }
+      });
+    }
+
+    // Validate the booking falls within item's availability day
     const isWithinAvailability = checkAvailability(item, startTime, endTime);
     if (!isWithinAvailability) {
       return res.status(400).json({ 
-        error: 'Requested time slot is outside item availability windows',
+        error: 'Requested day is outside item availability days',
         availability: {
           days: item.avl_days,
           times: item.avl_times
@@ -97,7 +135,7 @@ export const createBooking = async (req: Request, res: Response) => {
 
     if (overlappingBookings) {
       return res.status(409).json({ 
-        error: 'Time slot is already booked',
+        error: 'This slot is already booked',
         conflict: {
           start: formatTimestampToLocal(overlappingBookings.start_time),
           end: formatTimestampToLocal(overlappingBookings.end_time)
@@ -137,14 +175,14 @@ export const createBooking = async (req: Request, res: Response) => {
     const message = err instanceof z.ZodError ? err.issues : err.message;
     res.status(400).json({ error: message });
   }
-};
+});
 
 
 
 /**
  * Get available time slots for an item on a specific date
  */
-export const getAvailableSlots = async (req: Request, res: Response) => {
+export const getAvailableSlots = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: itemId } = req.params;
     const dateParam = req.query.date as string;
@@ -192,15 +230,17 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     // Check if the requested day is in the item's available days
     // Parse date as UTC to avoid timezone issues
     const dateUTC = new Date(dateParam + 'T00:00:00.000Z');
-    const dayOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dateUTC.getUTCDay()];
+    const dayOfWeek = DAYS_ABBREVIATED[dateUTC.getUTCDay()];
     const avlDaysLower = (item.avl_days || []).map(d => d.toLowerCase());
     
     if (!avlDaysLower.includes(dayOfWeek)) {
+      const formattedAvailableDays = avlDaysLower.map(d => DAY_NAMES_FULL[DAYS_ABBREVIATED.indexOf(d)] || d);
+      const fullDayName = DAY_NAMES_FULL[dateUTC.getUTCDay()];
       return res.json({
         date: dateParam,
         dayOfWeek,
-        message: `Item is not available on ${dayOfWeek}`,
-        availableDays: item.avl_days,
+        message: `Item is not available on ${fullDayName}`,
+        availableDays: formattedAvailableDays,
         slots: []
       });
     }
@@ -229,49 +269,26 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
       orderBy: { start_time: 'asc' }
     });
 
-    // Calculate remaining available slots by subtracting bookings from availability windows
+    // Return only FULL, completely unbooked slots (no partial bookings allowed)
+    // If any booking overlaps with a slot, the entire slot becomes unavailable
     const availableSlots: Array<{ startTime: string; endTime: string; available: boolean }> = [];
 
     for (const timeSlot of avlTimes) {
       // Convert availability window to timestamps
-      const avlStart = parseTimeToDateUTC(dateParam, timeSlot.start);
-      const avlEnd = parseTimeToDateUTC(dateParam, timeSlot.end);
+      const slotStart = parseTimeToDateUTC(dateParam, timeSlot.start);
+      const slotEnd = parseTimeToDateUTC(dateParam, timeSlot.end);
 
-      // Start with the full availability window
-      const freeSlots: Array<{ start: Date; end: Date }> = [{ start: avlStart, end: avlEnd }];
+      // Check if ANY booking overlaps with this slot
+      const hasOverlap = bookings.some((booking) => {
+        // Booking overlaps if: booking.start < slot.end AND booking.end > slot.start
+        return booking.start_time < slotEnd && booking.end_time > slotStart;
+      });
 
-      // Subtract each booking from the free slots
-      for (const booking of bookings) {
-        const bookingStart = booking.start_time;
-        const bookingEnd = booking.end_time;
-
-        // Process each free slot and split if booking overlaps
-        for (let i = freeSlots.length - 1; i >= 0; i--) {
-          const slot = freeSlots[i];
-
-          // Check if booking overlaps with this free slot
-          if (bookingStart < slot.end && bookingEnd > slot.start) {
-            // Remove the overlapped slot
-            freeSlots.splice(i, 1);
-
-            // Add back the non-overlapping parts
-            if (slot.start < bookingStart) {
-              // Part before the booking
-              freeSlots.push({ start: slot.start, end: bookingStart });
-            }
-            if (slot.end > bookingEnd) {
-              // Part after the booking
-              freeSlots.push({ start: bookingEnd, end: slot.end });
-            }
-          }
-        }
-      }
-
-      // Convert free slots back to time strings and add to result
-      for (const slot of freeSlots) {
+      // Only include slot if it has NO overlapping bookings
+      if (!hasOverlap) {
         availableSlots.push({
-          startTime: formatTimeStringUTC(slot.start),
-          endTime: formatTimeStringUTC(slot.end),
+          startTime: formatTimeStringUTC(slotStart),
+          endTime: formatTimeStringUTC(slotEnd),
           available: true
         });
       }
@@ -292,7 +309,7 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
-};
+});
 
 
 
@@ -302,7 +319,7 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
  */
 function checkAvailability(item: any, startTime: Date, endTime: Date): boolean {
   // Check day of week in UTC (matching the ISO timestamp format)
-  const dayOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][startTime.getUTCDay()];
+  const dayOfWeek = DAYS_ABBREVIATED[startTime.getUTCDay()];
   const avlDaysLower = (item.avl_days || []).map((d: string) => d.toLowerCase());
   
   if (!avlDaysLower.includes(dayOfWeek)) {

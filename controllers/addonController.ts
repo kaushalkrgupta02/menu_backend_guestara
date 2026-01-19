@@ -1,7 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import { asyncHandler } from '../middleware/errorHandler';
 
 const prisma = getPrisma();
 
@@ -9,7 +10,7 @@ const prisma = getPrisma();
  * Create a new addon for an item
  * POST /items/:id/addons
  */
-export const createAddon = async (req: Request, res: Response) => {
+export const createAddon = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: itemId } = req.params;
 
@@ -52,13 +53,13 @@ export const createAddon = async (req: Request, res: Response) => {
     const message = err instanceof z.ZodError ? err.issues : err.message;
     res.status(400).json({ error: message });
   }
-};
+});
 
 /**
  * List all addons for an item
  * GET /items/:id/addons
  */
-export const listAddons = async (req: Request, res: Response) => {
+export const listAddons = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id: itemId } = req.params;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -119,4 +120,4 @@ export const listAddons = async (req: Request, res: Response) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
-};
+});

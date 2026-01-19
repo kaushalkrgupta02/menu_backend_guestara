@@ -8,7 +8,7 @@ import { taxValidation, decimalValidator, parentValidation } from './common.vali
 export const createItemSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   description: z.string().optional(),
-  image: z.string().url().optional().or(z.literal('')),
+  image: z.union([z.literal(''), z.string().url()]).optional(),
   categoryId: z.string().optional(),
   subcategoryId: z.string().optional(),
   base_price: z.number().nonnegative('Price cannot be negative').default(0).refine(
@@ -32,7 +32,7 @@ export const createItemSchema = z.object({
 export const updateItemSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').optional(),
   description: z.string().optional(),
-  image: z.string().url().optional().or(z.literal('')),
+  image: z.union([z.literal(''), z.string().url()]).optional(),
   categoryId: z.string().optional(),
   subcategoryId: z.string().optional(),
   base_price: z.number().nonnegative('Price cannot be negative').optional(),

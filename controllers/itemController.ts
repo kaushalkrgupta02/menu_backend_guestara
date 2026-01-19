@@ -17,7 +17,12 @@ import { formatItem, formatPaginatedResponse } from '../dto/formatters';
 import { NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
 
 
+import { asyncHandler } from '../middleware/errorHandler';
+
 const prisma = getPrisma();
+
+// Day constants
+const DAYS_ABBREVIATED = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 // Legacy helper functions (deprecated - use formatters.ts instead)
 const formatTimestampToLocal = (date: Date) => {
@@ -32,7 +37,7 @@ const formatTimestampToLocal = (date: Date) => {
   });
 };
 
-export const createItem = async (req: Request, res: Response, next: NextFunction) => {
+export const createItem = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const parsed: CreateItemDTO = createItemSchema.parse(req.body);
 
   const catId = parsed.categoryId?.trim();
@@ -134,8 +139,7 @@ export const createItem = async (req: Request, res: Response, next: NextFunction
 
   // Availability Normalization
   if (parsed.avl_days) {
-    const valid = ['mon','tue','wed','thu','fri','sat','sun'];
-    data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => valid.includes(d));
+    data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => DAYS_ABBREVIATED.includes(d as any));
   }
   if (parsed.avl_times) {
     const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -174,9 +178,9 @@ export const createItem = async (req: Request, res: Response, next: NextFunction
     createdAt: formatTimestampToLocal(item.createdAt),
     updatedAt: formatTimestampToLocal(item.updatedAt)
   });
-};
+});
 
-export const listItems = async (req: Request, res: Response, next: NextFunction) => {
+export const listItems = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const query: ListItemsQueryDTO = listItemsQuerySchema.parse(req.query);
   const { page, limit, sortBy, sortDir, q, categoryId, minPrice, maxPrice, taxApplicable, activeOnly } = query;
 
@@ -185,6 +189,21 @@ export const listItems = async (req: Request, res: Response, next: NextFunction)
   if (categoryId) where.categoryId = categoryId;
   if (activeOnly) where.is_active = true;
 
+  // If activeOnly is true, also ensure parents are active
+  if (activeOnly) {
+    where.AND = [
+      { is_active: true },
+      {
+        OR: [
+          // Item with active category (or no category)
+          { category: { is_active: true } },
+          // Item with active subcategory (which means parent category is also active)
+          { subcategory: { category: { is_active: true } } }
+        ]
+      }
+    ];
+  }
+
   // Price range filtering
   if (minPrice !== undefined || maxPrice !== undefined) {
     where.base_price = {};
@@ -220,9 +239,9 @@ export const listItems = async (req: Request, res: Response, next: NextFunction)
 
   const formattedItems = items.map(formatItem);
   res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
-};
+});
 
-export const filterItems = async (req: Request, res: Response, next: NextFunction) => {
+export const filterItems = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const query: FilterItemsQueryDTO = filterItemsQuerySchema.parse(req.query);
   const { page, limit, sortBy, sortDir, minPrice, maxPrice, categoryActive, subcategoryActive, taxApplicable } = query;
 
@@ -230,6 +249,16 @@ export const filterItems = async (req: Request, res: Response, next: NextFunctio
   if (categoryActive !== undefined) where.category = { is_active: categoryActive };
   if (subcategoryActive !== undefined) where.subcategory = { is_active: subcategoryActive };
 
+  // Ensure parent categories are also active if filtering by parent status
+  if (categoryActive === true) {
+    if (!where.category) where.category = {};
+    where.category.is_active = true;
+  }
+  if (subcategoryActive === true) {
+    if (!where.subcategory) where.subcategory = {};
+    where.subcategory = { is_active: true, category: { is_active: true } };
+  }
+
   // Price range filtering
   if (minPrice !== undefined || maxPrice !== undefined) {
     where.base_price = {};
@@ -265,9 +294,9 @@ export const filterItems = async (req: Request, res: Response, next: NextFunctio
 
   const formattedItems = items.map(formatItem);
   res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
-};
+});
 
-export const getItemsByParent = async (req: Request, res: Response, next: NextFunction) => {
+export const getItemsByParent = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.max(1, parseInt(req.query.limit as string) || 10);
   const sortBy = (req.query.sortBy as string) || 'createdAt';
@@ -293,7 +322,7 @@ export const getItemsByParent = async (req: Request, res: Response, next: NextFu
   }
   if (subcategoryId) {
     where.subcategoryId = subcategoryId;
-    if (parentActive !== undefined) where.subcategory = { is_active: parentActive };
+    if (parentActive !== undefined) where.subcategory = { is_active: parentActive, category: { is_active: true } };
   }
 
   // Price range filtering
@@ -303,7 +332,7 @@ export const getItemsByParent = async (req: Request, res: Response, next: NextFu
     if (maxPrice !== undefined) where.base_price.lte = maxPrice;
   }
 
-  // Tax applicable filtering with inheritance support (Option B)
+  // Tax applicable filtering with inheritance support
   if (taxApplicable !== undefined) {
     const isTaxApplicable = taxApplicable === 'true';
     if (isTaxApplicable) {
@@ -332,9 +361,9 @@ export const getItemsByParent = async (req: Request, res: Response, next: NextFu
 
   const formattedItems = items.map(formatItem);
   res.json(formatPaginatedResponse(formattedItems, page, limit, total, item => item));
-};
+});
 
-export const getItem = async (req: Request, res: Response, next: NextFunction) => {
+export const getItem = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const item = await prisma.item.findUnique({
     where: { id },
@@ -346,9 +375,9 @@ export const getItem = async (req: Request, res: Response, next: NextFunction) =
   if (!item) throw new NotFoundError('Item', id);
 
   res.json(formatItem(item));
-};
+});
 
-export const getItemPrice = async (req: Request, res: Response, next: NextFunction) => {
+export const getItemPrice = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const currentTime = req.query.currentTime as string | undefined;
   const addonIdsParam = req.query.addonIds as string | undefined;
@@ -451,9 +480,9 @@ export const getItemPrice = async (req: Request, res: Response, next: NextFuncti
     taxAmount,
     grandTotal
   });
-};
+});
 
-export const patchItem = async (req: Request, res: Response, next: NextFunction) => {
+export const patchItem = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
 
   const parsed = z.object({
@@ -543,8 +572,7 @@ export const patchItem = async (req: Request, res: Response, next: NextFunction)
 
   // Normalize availability if provided
   if (parsed.avl_days) {
-    const valid = ['mon','tue','wed','thu','fri','sat','sun'];
-    data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => valid.includes(d));
+    data.avl_days = parsed.avl_days.map((d: string) => d.toLowerCase()).filter((d: string) => DAYS_ABBREVIATED.includes(d as any));
   }
   if (parsed.avl_times) {
     const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -664,9 +692,9 @@ export const patchItem = async (req: Request, res: Response, next: NextFunction)
     createdAt: formatTimestampToLocal(updated.createdAt),
     updatedAt: formatTimestampToLocal(updated.updatedAt)
   });
-};
+});
 
-export const bulkUpdatePriceConfig = async (req: Request, res: Response, next: NextFunction) => {
+export const bulkUpdatePriceConfig = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const parsed = z.object({
     categoryId: z.string().optional(),
     subcategoryId: z.string().optional(),
@@ -727,4 +755,4 @@ export const bulkUpdatePriceConfig = async (req: Request, res: Response, next: N
   });
 
   res.json({ success: true, results });
-};
+});

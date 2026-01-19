@@ -24,7 +24,17 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  console.error('[Error Handler]', err);
+  // Safe error logging that won't fail on circular references
+  try {
+    const errorLog = {
+      message: err instanceof Error ? err.message : String(err),
+      type: err.constructor.name,
+      ...(err instanceof AppError && { statusCode: err.statusCode })
+    };
+    console.error('[Error Handler]', JSON.stringify(errorLog, null, 2));
+  } catch (logErr) {
+    console.error('[Error Handler] Failed to log error:', err instanceof Error ? err.message : String(err));
+  }
 
   // Handle Zod validation errors
   if (err instanceof ZodError) {

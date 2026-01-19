@@ -12,6 +12,7 @@ export const createSubcategorySchema = z.object({
   description: z.string().optional(),
   tax_applicable: z.boolean().optional(),
   tax_percentage: decimalValidator.optional(),
+  is_tax_inherit: z.boolean().optional(),
   is_active: z.boolean().optional().default(true)
 });
 
@@ -22,6 +23,7 @@ export const updateSubcategorySchema = z.object({
   description: z.string().optional(),
   tax_applicable: z.boolean().optional(),
   tax_percentage: decimalValidator.optional(),
+  is_tax_inherit: z.boolean().optional(),
   is_active: z.boolean().optional()
 });
 

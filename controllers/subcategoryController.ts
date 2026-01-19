@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import { asyncHandler } from '../middleware/errorHandler';
 import {
   createSubcategorySchema,
   updateSubcategorySchema,
@@ -15,7 +16,7 @@ import { NotFoundError, ConflictError, BadRequestError } from '../utils/errors';
 
 const prisma = getPrisma();
 
-export const createSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+export const createSubcategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const parsed: CreateSubcategoryDTO = createSubcategorySchema.parse(req.body);
 
   // Name uniqueness check within category
@@ -36,7 +37,16 @@ export const createSubcategory = async (req: Request, res: Response, next: NextF
   }
 
   // Determine tax inheritance
-  const isTaxInherit = parsed.tax_applicable === undefined && parsed.tax_percentage === undefined;
+  const hasTaxPayload = parsed.tax_applicable !== undefined || parsed.tax_percentage !== undefined;
+  const isExplicitInherit = parsed.is_tax_inherit === true;
+  
+  // Validation: Cannot provide both explicit is_tax_inherit=true AND tax payloads
+  if (isExplicitInherit && hasTaxPayload) {
+    throw new BadRequestError('Invalid request: Cannot accept tax payloads when is_tax_inherit is true. Tax settings will be inherited from parent category.');
+  }
+
+  // Default: if no tax fields provided, default to inheriting
+  const isTaxInherit = parsed.is_tax_inherit === true || (!hasTaxPayload && parsed.is_tax_inherit !== false);
 
   const subcategory = await prisma.subcategory.create({
     data: {
@@ -56,9 +66,9 @@ export const createSubcategory = async (req: Request, res: Response, next: NextF
     createdAt: formatTimestampToLocal(subcategory.createdAt),
     updatedAt: formatTimestampToLocal(subcategory.updatedAt)
   });
-};
+});
 
-export const listSubcategories = async (req: Request, res: Response, next: NextFunction) => {
+export const listSubcategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const query: ListSubcategoriesQueryDTO = listSubcategoriesQuerySchema.parse(req.query);
   const { page, limit, sortBy, sortDir, categoryId, activeOnly, taxApplicable } = query;
 
@@ -93,9 +103,9 @@ export const listSubcategories = async (req: Request, res: Response, next: NextF
 
   const formattedSubcategories = subcategories.map(formatSubcategory);
   res.json(formatPaginatedResponse(formattedSubcategories, page, limit, total, item => item));
-};
+});
 
-export const getSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+export const getSubcategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const subcategory = await prisma.subcategory.findUnique({
     where: { id },
@@ -139,9 +149,9 @@ export const getSubcategory = async (req: Request, res: Response, next: NextFunc
   });
 
   res.json({ ...formattedSub, category: formattedCategory, items: formattedItems });
-};
+});
 
-export const patchSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+export const patchSubcategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const parsed = z.object({
     categoryId: z.string().optional(),
@@ -174,6 +184,12 @@ export const patchSubcategory = async (req: Request, res: Response, next: NextFu
   const decimal = require('../utils/decimal');
   const prevIsInherit = !!existing.is_tax_inherit;
   const newIsInherit = parsed.is_tax_inherit !== undefined ? parsed.is_tax_inherit : prevIsInherit;
+  const hasTaxPayload = parsed.tax_percentage !== undefined || parsed.tax_applicable !== undefined;
+
+  // If is_tax_inherit is true (or will be true), reject any explicit tax payloads
+  if (newIsInherit === true && hasTaxPayload) {
+    throw new BadRequestError('Invalid request: Cannot accept tax payloads when is_tax_inherit is true. Tax settings will be inherited from parent category.');
+  }
 
   const prevTaxApp = existing.tax_applicable;
   const prevTaxPct = decimal.decimalToNumber(existing.tax_percentage, 0);
@@ -187,7 +203,16 @@ export const patchSubcategory = async (req: Request, res: Response, next: NextFu
     if (newTaxApp === true && (!newTaxPct || newTaxPct <= 0)) throw new BadRequestError('If tax_applicable is true, tax_percentage must be greater than 0');
   }
   const updated = await prisma.$transaction(async (tx) => {
-    const sub = await tx.subcategory.update({ where: { id }, data: parsed });
+    // Build update payload with proper tax field handling
+    const updateData: any = { ...parsed };
+    
+    // If is_tax_inherit will be true, clear tax fields (set to null)
+    if (newIsInherit === true) {
+      updateData.tax_applicable = null as any;
+      updateData.tax_percentage = null as any;
+    }
+
+    const sub = await tx.subcategory.update({ where: { id }, data: updateData });
 
     // If tax-related settings changed, update items that inherit
     const taxChanged = (parsed.is_tax_inherit !== undefined && parsed.is_tax_inherit !== prevIsInherit) ||
@@ -207,9 +232,9 @@ export const patchSubcategory = async (req: Request, res: Response, next: NextFu
     createdAt: formatTimestampToLocal(updated.createdAt),
     updatedAt: formatTimestampToLocal(updated.updatedAt)
   });
-};
+});
 
-export const deactivateSubcategory = async (req: Request, res: Response, next: NextFunction) => {
+export const deactivateSubcategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   
   await prisma.$transaction([
@@ -218,4 +243,4 @@ export const deactivateSubcategory = async (req: Request, res: Response, next: N
   ]);
 
   res.json({ success: true });
-};
+});

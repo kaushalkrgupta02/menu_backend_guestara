@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { getPrisma } from '../config/prisma_client';
 import { z } from 'zod';
 import { formatTimestampToLocal } from '../utils/time';
+import { asyncHandler } from '../middleware/errorHandler';
 import { 
   createCategorySchema, 
   updateCategorySchema,
@@ -15,7 +16,7 @@ import { NotFoundError, BadRequestError } from '../utils/errors';
 
 const prisma = getPrisma();
 
-export const createCategory = async (req: Request, res: Response, next: NextFunction) => {
+export const createCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const parsed: CreateCategoryDTO = createCategorySchema.parse(req.body);
 
   const category = await prisma.category.create({
@@ -34,9 +35,9 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
     createdAt: formatTimestampToLocal(category.createdAt),
     updatedAt: formatTimestampToLocal(category.updatedAt)
   });
-};
+});
 
-export const listCategories = async (req: Request, res: Response, next: NextFunction) => {
+export const listCategories = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const query: ListCategoriesQueryDTO = listCategoriesQuerySchema.parse(req.query);
   const { page, limit, sortBy, sortDir, activeOnly } = query;
 
@@ -51,12 +52,11 @@ export const listCategories = async (req: Request, res: Response, next: NextFunc
       take: limit
     })
   ]);
-
   const formattedCategories = categories.map(formatCategory);
   res.json(formatPaginatedResponse(formattedCategories, page, limit, total, item => item));
-};
+});
 
-export const getCategory = async (req: Request, res: Response, next: NextFunction) => {
+export const getCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const category = await prisma.category.findUnique({
     where: { id },
@@ -99,9 +99,9 @@ export const getCategory = async (req: Request, res: Response, next: NextFunctio
     createdAt: formatTimestampToLocal(category.createdAt),
     updatedAt: formatTimestampToLocal(category.updatedAt)
   });
-};
+});
 
-export const patchCategory = async (req: Request, res: Response, next: NextFunction) => {
+export const patchCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   const parsed: UpdateCategoryDTO = z.object({
     name: z.string().optional(),
@@ -163,9 +163,9 @@ export const patchCategory = async (req: Request, res: Response, next: NextFunct
     createdAt: formatTimestampToLocal(updatedCategory.createdAt),
     updatedAt: formatTimestampToLocal(updatedCategory.updatedAt)
   });
-};
+});
 
-export const deactivateCategory = async (req: Request, res: Response, next: NextFunction) => {
+export const deactivateCategory = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const { id } = req.params;
   
   await prisma.$transaction([
@@ -175,4 +175,4 @@ export const deactivateCategory = async (req: Request, res: Response, next: Next
   ]);
 
   res.json({ success: true });
-};
+});

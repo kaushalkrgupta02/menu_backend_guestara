@@ -132,10 +132,10 @@ const swaggerDocument = {
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean' },
-          avl_days: { type: 'array', items: { type: 'string' } },
+          avl_days: { type: 'array', items: { type: 'string', enum: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] }, description: 'Available days as 3-letter abbreviations. Example: [\"mon\", \"tue\", \"wed\", \"thu\", \"fri\"]' },
           avl_times: { 
             type: 'array', 
-            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
+            items: { type: 'object', properties: { start: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' }, end: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' } }, description: 'Time slots in HH:MM format (24-hour). Example: {\"start\": \"09:00\", \"end\": \"17:00\"}' }, 
             nullable: true 
           },
           is_bookable: { type: 'boolean', description: 'Whether this item can be booked (e.g., yoga class, meeting room)' },
@@ -158,10 +158,10 @@ const swaggerDocument = {
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
-          avl_days: { type: 'array', items: { type: 'string' } },
+          avl_days: { type: 'array', items: { type: 'string', enum: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] }, description: 'Available days as 3-letter abbreviations. Example: ["mon", "tue", "wed", "thu", "fri"]' },
           avl_times: { 
             type: 'array', 
-            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
+            items: { type: 'object', properties: { start: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' }, end: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' } }, description: 'Time slots in HH:MM format (24-hour). Example: {"start": "09:00", "end": "17:00"}' }, 
             nullable: true 
           },
           is_bookable: { type: 'boolean', nullable: true, description: 'Whether this item can be booked' },
@@ -183,10 +183,10 @@ const swaggerDocument = {
           tax_applicable: { type: 'boolean', nullable: true },
           tax_percentage: { type: 'number', format: 'decimal', description: 'Decimal with up to 2 decimal places', nullable: true },
           is_tax_inherit: { type: 'boolean', nullable: true },
-          avl_days: { type: 'array', items: { type: 'string' } },
+          avl_days: { type: 'array', items: { type: 'string', enum: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] }, description: 'Available days as 3-letter abbreviations. Example: ["mon", "tue", "wed", "thu", "fri"]' },
           avl_times: { 
             type: 'array', 
-            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } }, 
+            items: { type: 'object', properties: { start: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' }, end: { type: 'string', pattern: '^([0-1][0-9]|2[0-3]):[0-5][0-9]$' } }, description: 'Time slots in HH:MM format (24-hour). Example: {"start": "09:00", "end": "17:00"}' }, 
             nullable: true 
           },
           is_bookable: { type: 'boolean', nullable: true, description: 'Whether this item can be booked' },
